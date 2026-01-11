@@ -17,6 +17,37 @@ export function formatRoamDate(date: Date): string {
 }
 
 /**
+ * Parse a Roam Research URL and extract the page/block UID.
+ * Handles URLs like:
+ * - https://roamresearch.com/#/app/graph-name/page/page_uid
+ * - https://roamresearch.com/#/app/graph-name/page/page_uid?version=...
+ *
+ * Returns null if the URL doesn't match expected patterns.
+ */
+export function parseRoamUrl(url: string): { type: 'page' | 'block'; uid: string; graph?: string } | null {
+  // Match Roam URL pattern: roamresearch.com/#/app/<graph>/page/<uid>
+  const pagePattern = /roamresearch\.com\/#\/app\/([^/]+)\/page\/([a-zA-Z0-9_-]{9})/;
+  const pageMatch = url.match(pagePattern);
+
+  if (pageMatch) {
+    return {
+      type: 'page',
+      uid: pageMatch[2],
+      graph: pageMatch[1]
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Check if a string looks like a Roam UID (9 alphanumeric characters).
+ */
+export function isRoamUid(str: string): boolean {
+  return /^[a-zA-Z0-9_-]{9}$/.test(str);
+}
+
+/**
  * Resolve relative date keywords to Roam date format.
  * Returns the original string if not a recognized keyword.
  */

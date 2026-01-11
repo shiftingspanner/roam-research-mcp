@@ -1,5 +1,19 @@
 # Changelog
 
+### v2.9.1 (2026-01-10)
+- **New:** `roam get page` subcommand for explicit page retrieval
+  - Fetch pages by UID: `roam get page abc123def`
+  - Fetch pages by Roam URL: `roam get page "https://roamresearch.com/#/app/my-graph/page/abc123def"`
+  - Fetch pages by title: `roam get page "Project Notes"`
+  - Added `parseRoamUrl()` and `isRoamUid()` helper utilities
+  - Added `fetchPageByUid()` method to PageOperations
+
+### v2.9.0 (2026-01-10)
+- **New:** `roam save` now infers heading hierarchy from markdown
+  - Headings (`#`, `##`, `###`) automatically create nested structure
+  - Use `--flatten` to disable hierarchy inference
+- **Fixed:** `roam_search_by_text` page filter now works correctly
+
 ### v2.8.2 (2026-01-09)
 - **Fixed:** `roam_search_by_text` now works with `page_title_uid` parameter — count query was missing `:in $ ?page-uid` clause
 

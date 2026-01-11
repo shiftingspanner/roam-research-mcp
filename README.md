@@ -40,6 +40,10 @@ roam search "important" --json | jq .
 # Fetch a page by title
 roam get "Roam Research"
 
+# Fetch page by UID or Roam URL
+roam get page abc123def
+roam get page "https://roamresearch.com/#/app/my-graph/page/abc123def"
+
 # Sort and group results
 roam get --tag Project --sort created --group-by tag
 

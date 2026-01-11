@@ -69,6 +69,13 @@ const x = 1;
 ### Calculator
 `{{[[calc]]: 2 + 2}}`
 
+### Codeblock
+Roam uses "shell" not "bash". Other common languages okay, including "plain text".
+```shell
+echo "Hello world!"
+```
+
+
 ## Complex Structures
 
 ### Tables

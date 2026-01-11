@@ -16,7 +16,7 @@ import {
 import { resolveGraph, type GraphOptions } from '../utils/graph.js';
 import { readStdin } from '../utils/input.js';
 import { resolveRefs } from '../../tools/helpers/refs.js';
-import { resolveRelativeDate } from '../../utils/helpers.js';
+import { resolveRelativeDate, parseRoamUrl, isRoamUid } from '../../utils/helpers.js';
 import { SearchUtils } from '../../search/utils.js';
 import {
   sortResults,
@@ -103,8 +103,151 @@ function contentHasTag(content: string, tag: string): boolean {
   );
 }
 
+interface PageSubcommandOptions extends GraphOptions {
+  json?: boolean;
+  depth?: string;
+  refs?: string;
+  flat?: boolean;
+  debug?: boolean;
+  uid?: boolean;
+}
+
+/**
+ * Create the 'page' subcommand for explicit page retrieval
+ */
+function createPageSubcommand(): Command {
+  return new Command('page')
+    .description('Fetch a page by UID, URL, or title')
+    .argument('<identifier>', 'Page UID, Roam URL, or page title')
+    .option('-j, --json', 'Output as JSON instead of markdown')
+    .option('-d, --depth <n>', 'Child levels to fetch (default: 4)', '4')
+    .option('-r, --refs [n]', 'Expand ((uid)) refs in output (default depth: 1, max: 4)')
+    .option('-f, --flat', 'Flatten hierarchy to single-level list')
+    .option('-u, --uid', 'Return only the page UID')
+    .option('-g, --graph <name>', 'Target graph key (multi-graph mode)')
+    .option('--debug', 'Show query metadata')
+    .addHelpText('after', `
+Examples:
+  # By page title
+  roam get page "Project Notes"
+  roam get page "January 10th, 2026"
+
+  # By page UID
+  roam get page abc123def
+
+  # By Roam URL (copy from browser)
+  roam get page "https://roamresearch.com/#/app/my-graph/page/abc123def"
+
+  # Get just the page UID
+  roam get page "Project Notes" --uid
+`)
+    .action(async (identifier: string, options: PageSubcommandOptions) => {
+      try {
+        const graph = resolveGraph(options, false);
+        const depth = parseInt(options.depth || '4', 10);
+        const refsDepth = options.refs !== undefined
+          ? Math.min(4, Math.max(1, parseInt(options.refs as string, 10) || 1))
+          : 0;
+        const outputOptions: OutputOptions = {
+          json: options.json,
+          flat: options.flat,
+          debug: options.debug
+        };
+
+        if (options.debug) {
+          printDebug('Identifier', identifier);
+          printDebug('Graph', options.graph || 'default');
+        }
+
+        // Resolve identifier to page UID
+        let pageUid: string | null = null;
+        let pageTitle: string | null = null;
+
+        // 1. Check if it's a Roam URL
+        const urlParsed = parseRoamUrl(identifier);
+        if (urlParsed) {
+          pageUid = urlParsed.uid;
+          if (options.debug) {
+            printDebug('Parsed URL', { uid: pageUid, graph: urlParsed.graph });
+          }
+        }
+        // 2. Check if it's a direct UID
+        else if (isRoamUid(identifier)) {
+          pageUid = identifier;
+          if (options.debug) {
+            printDebug('Direct UID', pageUid);
+          }
+        }
+        // 3. Otherwise treat as page title
+        else {
+          pageTitle = resolveRelativeDate(identifier);
+          if (options.debug && pageTitle !== identifier) {
+            printDebug('Resolved date', `${identifier} → ${pageTitle}`);
+          }
+        }
+
+        const pageOps = new PageOperations(graph);
+
+        // If --uid flag, just return the UID
+        if (options.uid) {
+          if (pageUid) {
+            console.log(pageUid);
+          } else if (pageTitle) {
+            const uid = await pageOps.getPageUid(pageTitle);
+            if (!uid) {
+              exitWithError(`Page "${pageTitle}" not found`);
+            }
+            console.log(uid);
+          }
+          return;
+        }
+
+        // Fetch page content
+        let blocks: RoamBlock[];
+        let displayTitle: string;
+
+        if (pageUid) {
+          // Fetch by UID - first need to get page title for display
+          const result = await pageOps.fetchPageByUid(pageUid);
+          if (!result) {
+            exitWithError(`Page with UID "${pageUid}" not found`);
+          }
+          blocks = result.blocks;
+          displayTitle = result.title;
+        } else if (pageTitle) {
+          // Fetch by title
+          const result = await pageOps.fetchPageByTitle(pageTitle, 'raw');
+          if (typeof result === 'string') {
+            try {
+              blocks = JSON.parse(result) as RoamBlock[];
+            } catch {
+              exitWithError(result);
+              return;
+            }
+          } else {
+            blocks = result;
+          }
+          displayTitle = pageTitle;
+        } else {
+          exitWithError('Could not parse identifier');
+          return;
+        }
+
+        // Resolve block references if requested
+        if (refsDepth > 0) {
+          blocks = await resolveBlocksRefsInTree(graph, blocks, refsDepth);
+        }
+
+        console.log(formatPageOutput(displayTitle, blocks, outputOptions));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        exitWithError(message);
+      }
+    });
+}
+
 export function createGetCommand(): Command {
-  return new Command('get')
+  const cmd = new Command('get')
     .description('Fetch pages, blocks, or TODO/DONE items with optional ref expansion')
     .argument('[target]', 'Page title, block UID, or relative date. Reads from stdin if "-" or omitted.')
     .option('-j, --json', 'Output as JSON instead of markdown')
@@ -141,6 +284,10 @@ Examples:
   roam get "Project Notes"                    # Page by title
   roam get today                              # Today's daily page
   roam get yesterday                          # Yesterday's daily page
+
+  # Fetch page by UID or URL (see 'roam get page --help')
+  roam get page abc123def                     # Page by UID
+  roam get page "https://roamresearch.com/#/app/my-graph/page/abc123def"
 
   # Resolve page title to UID
   roam get "Project Notes" --uid              # Returns just the page UID
@@ -534,4 +681,9 @@ Note: For flat results with UIDs, use 'roam search' instead.
         exitWithError(message);
       }
     });
+
+  // Add subcommands
+  cmd.addCommand(createPageSubcommand());
+
+  return cmd;
 }

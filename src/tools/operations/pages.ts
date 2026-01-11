@@ -469,6 +469,111 @@ export class PageOperations {
     return uid;
   }
 
+  /**
+   * Fetch a page by its UID.
+   * Returns the page title and blocks, or null if not found.
+   */
+  async fetchPageByUid(uid: string): Promise<{ title: string; blocks: RoamBlock[] } | null> {
+    if (!uid) {
+      return null;
+    }
+
+    // First get the page title
+    const titleQuery = `[:find ?title . :where [?e :block/uid "${uid}"] [?e :node/title ?title]]`;
+    const title = await q(this.graph, titleQuery, []) as unknown as string | null;
+
+    if (!title) {
+      return null;
+    }
+
+    // Define ancestor rule for traversing block hierarchy
+    const ancestorRule = `[
+      [ (ancestor ?b ?a)
+        [?a :block/children ?b] ]
+      [ (ancestor ?b ?a)
+        [?parent :block/children ?b]
+        (ancestor ?parent ?a) ]
+    ]`;
+
+    // Get all blocks under this page using ancestor rule
+    const blocksQuery = `[:find ?block-uid ?block-str ?order ?parent-uid
+                        :in $ % ?page-uid
+                        :where [?page :block/uid ?page-uid]
+                               [?block :block/string ?block-str]
+                               [?block :block/uid ?block-uid]
+                               [?block :block/order ?order]
+                               (ancestor ?block ?page)
+                               [?parent :block/children ?block]
+                               [?parent :block/uid ?parent-uid]]`;
+    const blocks = await q(this.graph, blocksQuery, [ancestorRule, uid]);
+
+    if (!blocks || blocks.length === 0) {
+      return { title, blocks: [] };
+    }
+
+    // Get heading information for blocks that have it
+    const headingsQuery = `[:find ?block-uid ?heading
+                          :in $ % ?page-uid
+                          :where [?page :block/uid ?page-uid]
+                                 [?block :block/uid ?block-uid]
+                                 [?block :block/heading ?heading]
+                                 (ancestor ?block ?page)]`;
+    const headings = await q(this.graph, headingsQuery, [ancestorRule, uid]);
+
+    // Create a map of block UIDs to heading levels
+    const headingMap = new Map<string, number>();
+    if (headings) {
+      for (const [blockUid, heading] of headings) {
+        headingMap.set(blockUid, heading as number);
+      }
+    }
+
+    // Create a map of all blocks
+    const blockMap = new Map<string, RoamBlock>();
+    const rootBlocks: RoamBlock[] = [];
+
+    // First pass: Create all block objects
+    for (const [blockUid, blockStr, order, parentUid] of blocks) {
+      const block = {
+        uid: blockUid,
+        string: blockStr,
+        order: order as number,
+        heading: headingMap.get(blockUid) || null,
+        children: []
+      };
+      blockMap.set(blockUid, block);
+
+      // If no parent or parent is the page itself, it's a root block
+      if (!parentUid || parentUid === uid) {
+        rootBlocks.push(block);
+      }
+    }
+
+    // Second pass: Build parent-child relationships
+    for (const [blockUid, _, __, parentUid] of blocks) {
+      if (parentUid && parentUid !== uid) {
+        const child = blockMap.get(blockUid);
+        const parent = blockMap.get(parentUid);
+        if (child && parent && !parent.children.includes(child)) {
+          parent.children.push(child);
+        }
+      }
+    }
+
+    // Sort blocks recursively
+    const sortBlocks = (blocks: RoamBlock[]) => {
+      blocks.sort((a, b) => a.order - b.order);
+      blocks.forEach(block => {
+        if (block.children.length > 0) {
+          sortBlocks(block.children);
+        }
+      });
+    };
+    sortBlocks(rootBlocks);
+
+    return { title, blocks: rootBlocks };
+  }
+
   async fetchPageByTitle(
     title: string,
     format: 'markdown' | 'raw' = 'raw'
