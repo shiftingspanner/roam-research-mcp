@@ -1,5 +1,13 @@
 # Changelog
 
+### v2.10.3 (2026-01-18)
+- **New:** `roam_process_batch_actions` now parses markdown heading syntax (`#`, `##`, `###`)
+  - `"### Description"` automatically becomes heading level 3 with text "Description"
+  - Explicit `heading` parameter still takes precedence over markdown syntax
+- **Cleanup:** Removed dead code from `BlockOperations` class
+  - Removed unused `createBlock`, `updateBlock`, `updateBlocks` methods
+  - Removed unused `BlockUpdate`, `BlockUpdateResult` types
+
 ### v2.10.2 (2026-01-18)
 - **Fixed:** `roam_import_markdown` failing on existing pages with "Parent entity doesn't exist"
   - Added verification when `page_uid` is provided directly (was used without validation)

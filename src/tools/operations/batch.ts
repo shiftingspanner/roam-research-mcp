@@ -1,6 +1,6 @@
 import { Graph, batchActions as roamBatchActions } from '@roam-research/roam-api-sdk';
 import { RoamBatchAction } from '../../types/roam.js';
-import { generateBlockUid } from '../../markdown-utils.js';
+import { generateBlockUid, parseMarkdownHeadingLevel } from '../../markdown-utils.js';
 import {
   validateBatchActions,
   formatValidationErrors,
@@ -188,9 +188,19 @@ export class BatchOperations {
       }
 
       const block: any = {};
-      if (rest.string) block.string = rest.string;
+      if (rest.string) {
+        // Parse markdown heading syntax (e.g., "### Description" -> heading: 3, string: "Description")
+        const { heading_level, content } = parseMarkdownHeadingLevel(rest.string);
+        block.string = heading_level > 0 ? content : rest.string;
+
+        // Use parsed heading level if not explicitly overridden
+        if (heading_level > 0 && rest.heading === undefined) {
+          block.heading = heading_level;
+        }
+      }
       if (rest.uid) block.uid = rest.uid;
       if (rest.open !== undefined) block.open = rest.open;
+      // Explicit heading parameter takes precedence over markdown syntax
       if (rest.heading !== undefined && rest.heading !== null && rest.heading !== 0) {
         block.heading = rest.heading;
       }

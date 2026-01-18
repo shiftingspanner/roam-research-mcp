@@ -11,23 +11,6 @@ export interface SearchResult {
   page_title?: string;
 }
 
-export interface BlockUpdateResult {
-  block_uid: string;
-  content: string;
-  success: boolean;
-  error?: string;
-}
-
-export interface BlockUpdate {
-  block_uid: string;
-  content?: string;
-  transform?: {
-    find: string;
-    replace: string;
-    global?: boolean;
-  };
-}
-
 export interface OutlineItem {
   text: string | undefined;
   level: number;
