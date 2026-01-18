@@ -519,7 +519,18 @@ export class OutlineOperations {
     // First get the page UID
     let targetPageUid = page_uid;
 
-    if (!targetPageUid && page_title) {
+    // If page_uid is provided, verify it exists
+    if (page_uid) {
+      const verifyQuery = `[:find ?uid :where [?e :block/uid "${page_uid}"] [?e :block/uid ?uid]]`;
+      const verifyResult = await q(this.graph, verifyQuery, []) as [string][];
+      if (!verifyResult || verifyResult.length === 0) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Page/block with UID "${page_uid}" not found`
+        );
+      }
+      targetPageUid = page_uid;
+    } else if (page_title) {
       // Check cache first
       const cachedUid = pageUidCache.get(page_title);
       if (cachedUid) {
@@ -563,6 +574,10 @@ export class OutlineOperations {
               action: 'create-page',
               page: { title: dateStr }
             });
+
+            // Small delay for new page to be fully available as parent in Roam
+            // (fixes "Parent entity doesn't exist" error when adding content immediately)
+            await new Promise(resolve => setTimeout(resolve, 400));
 
             const results = await q(this.graph, findQuery, [dateStr]) as [string][];
             if (!results || results.length === 0) {

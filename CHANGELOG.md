@@ -1,5 +1,11 @@
 # Changelog
 
+### v2.10.2 (2026-01-18)
+- **Fixed:** `roam_import_markdown` failing on existing pages with "Parent entity doesn't exist"
+  - Added verification when `page_uid` is provided directly (was used without validation)
+  - Added 400ms delay after creating today's page for Roam eventual consistency
+  - Invalid UIDs now return clear error: `Page/block with UID "..." not found`
+
 ### v2.10.1 (2026-01-18)
 - **Fixed:** `roam_create_page` with content array failing with "Parent entity doesn't exist"
   - Added 400ms delay after new page creation for Roam eventual consistency
