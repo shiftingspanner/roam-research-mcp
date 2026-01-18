@@ -208,6 +208,60 @@ Add to your MCP settings file (e.g., `~/Library/Application Support/Claude/claud
 }
 ```
 
+## Query Block Parser (v2.11.0+)
+
+A utility for parsing and executing Roam query blocks programmatically. Converts `{{[[query]]: ...}}` syntax into Datalog queries.
+
+### Supported Clauses
+
+| Clause | Syntax | Description |
+|--------|--------|-------------|
+| Page ref | `[[page]]` | Blocks referencing a page |
+| Block ref | `((uid))` | Blocks referencing a block |
+| `and` | `{and: [[a]] [[b]]}` | All conditions must match |
+| `or` | `{or: [[a]] [[b]]}` | Any condition matches |
+| `not` | `{not: [[tag]]}` | Exclude matches |
+| `between` | `{between: [[date1]] [[date2]]}` | Date range filter |
+| `search` | `{search: text}` | Full-text search |
+| `daily notes` | `{daily notes: }` | Daily notes pages only |
+| `by` | `{by: [[User]]}` | Created or edited by user |
+| `created by` | `{created by: [[User]]}` | Created by user |
+| `edited by` | `{edited by: User}` | Edited by user |
+
+### Relative Dates
+
+The `between` clause supports relative dates: `today`, `yesterday`, `last week`, `last month`, `this year`, `7 days ago`, `2 months ago`, etc.
+
+### Usage
+
+```typescript
+import { QueryExecutor } from 'roam-research-mcp/query';
+
+const executor = new QueryExecutor(graph);
+
+// Execute a query
+const results = await executor.execute(
+  '{{[[query]]: "My Query" {and: [[Project]] {between: [[last month]] [[today]]}}}}'
+);
+
+// Parse without executing (for debugging)
+const { name, query } = QueryParser.parseWithName(queryBlock);
+```
+
+### Utility Functions
+
+```typescript
+import { isQueryBlock, extractQueryBlocks } from 'roam-research-mcp/query';
+
+// Detect if text is a query block
+isQueryBlock('{{[[query]]: [[tag]]}}'); // true
+
+// Extract all query blocks from a string
+extractQueryBlocks(pageContent); // ['{{[[query]]: ...}}', ...]
+```
+
+---
+
 ## Support
 
 If this project helps you manage your knowledge base or build cool agents, consider buying me a coffee! It helps keep the updates coming.
