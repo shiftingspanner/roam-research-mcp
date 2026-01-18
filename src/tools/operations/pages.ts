@@ -173,8 +173,8 @@ export class PageOperations {
               action: 'create-page',
               page: { title: dailyPageTitle }
             });
-            // Small delay for daily page creation
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Small delay for daily page creation to be available as parent
+            await new Promise(resolve => setTimeout(resolve, 400));
             dailyPageUid = await q(this.graph, dailyPageQuery, []) as unknown as string | null;
           }
 
@@ -200,6 +200,9 @@ export class PageOperations {
           pageUid = results[0][0];
           // Cache the newly created page
           pageUidCache.onPageCreated(pageTitle, pageUid);
+          // Small delay for new page to be fully available as parent in Roam
+          // (fixes "Parent entity doesn't exist" error when adding content immediately)
+          await new Promise(resolve => setTimeout(resolve, 400));
         } catch (error) {
           throw new McpError(
             ErrorCode.InternalError,

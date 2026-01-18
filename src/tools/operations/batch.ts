@@ -221,6 +221,40 @@ export class BatchOperations {
       // FAILURE: Do NOT return uid_map - blocks don't exist
       const errorMessage = error instanceof Error ? error.message : String(error);
 
+      // Check for parent entity error - retry once after delay (Roam eventual consistency)
+      if (errorMessage.includes("Parent entity doesn't exist")) {
+        console.log('[batch] Parent entity not found, retrying after 400ms...');
+        await sleep(400);
+        try {
+          await this.executeWithRetry(batchActions);
+          // SUCCESS on retry
+          const result: BatchResult = {
+            success: true,
+            validation_passed: true,
+            actions_attempted: batchActions.length
+          };
+          if (hasPlaceholders) {
+            result.uid_map = uidMap;
+          }
+          return result;
+        } catch (retryError) {
+          // Still failed after retry
+          const retryErrorMessage = retryError instanceof Error ? retryError.message : String(retryError);
+          return {
+            success: false,
+            error: {
+              code: 'PARENT_ENTITY_NOT_FOUND',
+              message: `${retryErrorMessage} (retried once after 400ms delay)`,
+              recovery: {
+                suggestion: 'Verify the parent block/page UID exists and is spelled correctly'
+              }
+            },
+            validation_passed: true,
+            actions_attempted: batchActions.length
+          };
+        }
+      }
+
       // Check if it's a rate limit error
       if (isRateLimitError(error) || (error as any).isRateLimit) {
         return {

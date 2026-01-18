@@ -138,6 +138,9 @@ async function findOrCreatePage(graph: any, title: string): Promise<string> {
     page: { title }
   });
 
+  // Small delay for new page to be fully available as parent in Roam
+  await new Promise(resolve => setTimeout(resolve, 400));
+
   const results = await q(graph, findQuery, [title]) as [string][];
   if (!results || results.length === 0) {
     throw new Error(`Could not find created page: ${title}`);

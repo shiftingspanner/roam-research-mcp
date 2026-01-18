@@ -1,6 +1,7 @@
 ---
-version: 2.9.1
+version: 2.9.2
 date: 2026-01-12
+last_modified: 2026-01-18
 ---
 
 # Roam CLI Reference (LLM-Optimized)
@@ -168,8 +169,11 @@ roam status --json                              # for scripting
 2. **Date pages** use ordinal format: `"January 3rd, 2026"` (not ISO)
 3. **UIDs** are 9-char alphanumeric (`[a-zA-Z0-9_-]{9}`); accept `((uid))` wrapper
 4. **--parent heading** syntax: `"## Section"` creates H2 heading if missing
-5. **Batch parent** accepts: block UID, `"daily"`, page title (string), `{{alias}}`
+5. **Batch parent** accepts: 9-char UID, `"daily"`, MM-DD-YYYY date, or `{{alias}}` placeholder — NOT page title strings directly
 6. **Tag search** returns blocks WITH children; `--tag` uses AND by default, add `--any` for OR
 7. **--update** on save does smart diff preserving block UIDs
 8. **Limit defaults**: `get --tag/--text` = 20, `search` = 20, `refs` = 50
 9. **Heading auto-detect**: `"# Title"` in content auto-sets H1 and strips `#` prefix
+10. **Resolve page→UID first** for batch: `roam get "Page Title" --uid` then use UID in batch commands
+11. **File import preferred** for complex content: `roam save file.md --title "Page"` handles nested markdown more reliably than programmatic block creation
+12. **MCP/CLI sync lag**: Content created via CLI may not immediately appear in MCP fetches (use CLI to verify)

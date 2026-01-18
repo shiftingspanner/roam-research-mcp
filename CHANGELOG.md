@@ -1,5 +1,12 @@
 # Changelog
 
+### v2.10.1 (2026-01-18)
+- **Fixed:** `roam_create_page` with content array failing with "Parent entity doesn't exist"
+  - Added 400ms delay after new page creation for Roam eventual consistency
+  - Added retry logic in `BatchOperations.processBatch()` for parent entity errors
+  - Applies to MCP tool, CLI `--title` mode, and CLI `--page` mode
+- **New:** `PARENT_ENTITY_NOT_FOUND` error code for structured error handling
+
 ### v2.9.1 (2026-01-10)
 - **New:** `roam get page` subcommand for explicit page retrieval
   - Fetch pages by UID: `roam get page abc123def`

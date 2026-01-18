@@ -7,6 +7,7 @@ export type ErrorCode =
   | 'VALIDATION_ERROR'
   | 'BLOCK_NOT_FOUND'
   | 'PAGE_NOT_FOUND'
+  | 'PARENT_ENTITY_NOT_FOUND'
   | 'RATE_LIMIT'
   | 'API_ERROR'
   | 'TRANSACTION_FAILED'
