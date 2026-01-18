@@ -603,16 +603,17 @@ export class PageOperations {
     ]`;
 
     // Get all blocks under this page using ancestor rule
+    // Use UID to avoid case-sensitivity issues (getPageUid handles case variations)
     const blocksQuery = `[:find ?block-uid ?block-str ?order ?parent-uid
-                        :in $ % ?page-title
-                        :where [?page :node/title ?page-title]
+                        :in $ % ?page-uid
+                        :where [?page :block/uid ?page-uid]
                                [?block :block/string ?block-str]
                                [?block :block/uid ?block-uid]
                                [?block :block/order ?order]
                                (ancestor ?block ?page)
                                [?parent :block/children ?block]
                                [?parent :block/uid ?parent-uid]]`;
-    const blocks = await q(this.graph, blocksQuery, [ancestorRule, title]);
+    const blocks = await q(this.graph, blocksQuery, [ancestorRule, uid]);
 
     if (!blocks || blocks.length === 0) {
       if (format === 'raw') {
@@ -623,12 +624,12 @@ export class PageOperations {
 
     // Get heading information for blocks that have it
     const headingsQuery = `[:find ?block-uid ?heading
-                          :in $ % ?page-title
-                          :where [?page :node/title ?page-title]
+                          :in $ % ?page-uid
+                          :where [?page :block/uid ?page-uid]
                                  [?block :block/uid ?block-uid]
                                  [?block :block/heading ?heading]
                                  (ancestor ?block ?page)]`;
-    const headings = await q(this.graph, headingsQuery, [ancestorRule, title]);
+    const headings = await q(this.graph, headingsQuery, [ancestorRule, uid]);
 
     // Create a map of block UIDs to heading levels
     const headingMap = new Map<string, number>();
