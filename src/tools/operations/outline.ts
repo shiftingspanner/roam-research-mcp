@@ -9,6 +9,7 @@ import {
   hasMarkdownTable,
   type BatchAction
 } from '../../markdown-utils.js';
+import { executeStagedBatch } from '../../shared/staged-batch.js';
 import type { OutlineItem, NestedBlock } from '../types/index.js';
 import { pageUidCache } from '../../cache/page-uid-cache.js';
 
@@ -434,7 +435,7 @@ export class OutlineOperations {
         };
       });
 
-      // Convert nodes to batch actions
+      // Convert nodes to batch actions (flat list)
       const actions = convertToRoamActions(nodes, targetParentUid, 'last');
 
       if (actions.length === 0) {
@@ -444,23 +445,12 @@ export class OutlineOperations {
         );
       }
 
-      // Execute batch actions to create the outline
-      result = await batchActions(this.graph, {
-        action: 'batch-actions',
-        actions
-      }).catch(error => {
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Failed to create outline blocks: ${error.message}`
-        );
+      // Execute with staged batch to avoid race conditions
+      // where child blocks are created before their parent blocks exist
+      result = await executeStagedBatch(this.graph, actions, {
+        context: 'outline creation',
+        delayBetweenLevels: 100
       });
-
-      if (!result) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          'Failed to create outline blocks - no result returned'
-        );
-      }
     } catch (error: any) {
       if (error instanceof McpError) throw error;
       throw new McpError(

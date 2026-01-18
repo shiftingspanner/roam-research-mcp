@@ -9,6 +9,7 @@ import {
   hasMarkdownTable,
   generateBlockUid
 } from '../../markdown-utils.js';
+import { executeStagedBatch } from '../../shared/staged-batch.js';
 import { pageUidCache } from '../../cache/page-uid-cache.js';
 import { buildTableActions, type TableRow } from './table.js';
 import { BatchOperations } from './batch.js';
@@ -334,14 +335,11 @@ export class PageOperations {
           const textActions = buildActionsFromNodes(nodesWithUids, pageUid, startOrder);
 
           if (textActions.length > 0) {
-            const batchResult = await batchActions(this.graph, {
-              action: 'batch-actions',
-              actions: textActions
+            // Use staged batch to ensure parent blocks exist before children
+            await executeStagedBatch(this.graph, textActions, {
+              context: 'page content creation',
+              delayBetweenLevels: 100
             });
-
-            if (!batchResult) {
-              throw new Error('Failed to create text blocks');
-            }
           }
 
           // Return the next order position (number of root-level blocks added)
@@ -830,14 +828,11 @@ export class PageOperations {
     // 7. Execute if not dry run and there are actions
     if (!dryRun && actions.length > 0) {
       try {
-        const batchResult = await batchActions(this.graph, {
-          action: 'batch-actions',
-          actions: actions
+        // Use staged batch to ensure parent blocks exist before children
+        await executeStagedBatch(this.graph, actions, {
+          context: 'page update',
+          delayBetweenLevels: 100
         });
-
-        if (!batchResult) {
-          throw new Error('Batch actions returned no result');
-        }
       } catch (error) {
         throw new McpError(
           ErrorCode.InternalError,

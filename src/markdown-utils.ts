@@ -451,10 +451,70 @@ function convertToRoamActions(
   return actions;
 }
 
+/**
+ * Converts markdown nodes to Roam batch actions, grouped by nesting level.
+ * This ensures parent blocks exist before child blocks are created.
+ * Returns an array of action arrays, where index 0 contains root-level actions,
+ * index 1 contains first-level child actions, etc.
+ */
+function convertToRoamActionsStaged(
+  nodes: MarkdownNode[],
+  parentUid: string,
+  order: 'first' | 'last' | number = 'last'
+): BatchAction[][] {
+  // First convert nodes to blocks with UIDs
+  const blocks = convertNodesToBlocks(nodes);
+  const actionsByLevel: BatchAction[][] = [];
+
+  // Helper function to recursively create actions, tracking depth
+  function createBlockActions(
+    blocks: BlockInfo[],
+    parentUid: string,
+    order: 'first' | 'last' | number,
+    depth: number
+  ): void {
+    // Ensure array exists for this depth
+    if (!actionsByLevel[depth]) {
+      actionsByLevel[depth] = [];
+    }
+
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      // Create the current block
+      const action: RoamCreateBlock = {
+        action: 'create-block',
+        location: {
+          'parent-uid': parentUid,
+          order: typeof order === 'number' ? order + i : i
+        },
+        block: {
+          uid: block.uid,
+          string: block.content,
+          ...(block.heading_level && { heading: block.heading_level }),
+          ...(block.children_view_type && { 'children-view-type': block.children_view_type })
+        }
+      };
+
+      actionsByLevel[depth].push(action);
+
+      // Create child blocks if any
+      if (block.children.length > 0) {
+        createBlockActions(block.children, block.uid, 'last', depth + 1);
+      }
+    }
+  }
+
+  // Create all block actions starting at depth 0
+  createBlockActions(blocks, parentUid, order, 0);
+
+  return actionsByLevel;
+}
+
 // Export public functions and types
 export {
   parseMarkdown,
   convertToRoamActions,
+  convertToRoamActionsStaged,
   hasMarkdownTable,
   convertAllTables,
   convertToRoamMarkdown,
