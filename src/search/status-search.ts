@@ -2,7 +2,6 @@ import { q } from '@roam-research/roam-api-sdk';
 import type { Graph } from '@roam-research/roam-api-sdk';
 import { BaseSearchHandler, SearchResult } from './types.js';
 import { SearchUtils } from './utils.js';
-import { resolveRefs } from '../tools/helpers/refs.js';
 
 export interface StatusSearchParams {
   status: 'TODO' | 'DONE';
@@ -59,12 +58,7 @@ export class StatusSearchHandler extends BaseSearchHandler {
     const rawResults = await q(this.graph, queryStr, queryParams) as [string, string, string?, number?, number?][];
 
     // Resolve block references in content
-    const resolvedResults = await Promise.all(
-      rawResults.map(async ([uid, content, pageTitle, created, modified]) => {
-        const resolvedContent = await resolveRefs(this.graph, content);
-        return [uid, resolvedContent, pageTitle, created, modified] as [string, string, string?, number?, number?];
-      })
-    );
+    const resolvedResults = await this.resolveBlockRefs(rawResults);
     
     return SearchUtils.formatSearchResults(resolvedResults, `with status ${status}`, !targetPageUid);
   }

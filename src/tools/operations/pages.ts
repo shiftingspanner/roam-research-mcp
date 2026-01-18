@@ -1,7 +1,9 @@
-import { Graph, q, createPage as createRoamPage, batchActions, updatePage } from '@roam-research/roam-api-sdk';
+import { Graph, q, createPage as createRoamPage, updatePage } from '@roam-research/roam-api-sdk';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { capitalizeWords } from '../helpers/text.js';
+import { ANCESTOR_RULE } from '../../search/ancestor-rule.js';
+import { getPageUid as getPageUidHelper } from '../helpers/page-resolution.js';
 import { resolveRefs, resolveBlockRefs } from '../helpers/refs.js';
+import { executeBatch, executeBatchSafe } from '../helpers/batch-utils.js';
 import type { RoamBlock } from '../types/index.js';
 import {
   parseMarkdown,
@@ -61,15 +63,6 @@ export class PageOperations {
   }
 
   async findPagesModifiedToday(limit: number = 50, offset: number = 0, sort_order: 'asc' | 'desc' = 'desc') {
-    // Define ancestor rule for traversing block hierarchy
-    const ancestorRule = `[
-      [ (ancestor ?b ?a)
-        [?a :block/children ?b] ]
-      [ (ancestor ?b ?a)
-        [?parent :block/children ?b]
-        (ancestor ?parent ?a) ]
-    ]`;
-
     // Get start of today
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -94,7 +87,7 @@ export class PageOperations {
       const results = await q(
         this.graph,
         query,
-        [startOfDay.getTime(), ancestorRule]
+        [startOfDay.getTime(), ANCESTOR_RULE]
       ) as [string, number][];
 
       if (!results || results.length === 0) {
@@ -184,14 +177,11 @@ export class PageOperations {
           }
 
           // Create block with page reference - this instantly creates the target page
-          await batchActions(this.graph, {
-            action: 'batch-actions',
-            actions: [{
-              action: 'create-block',
-              location: { 'parent-uid': dailyPageUid, order: 'last' },
-              block: { string: `Created page: [[${pageTitle}]]` }
-            }]
-          });
+          await executeBatch(this.graph, [{
+            action: 'create-block',
+            location: { 'parent-uid': dailyPageUid, order: 'last' },
+            block: { string: `Created page: [[${pageTitle}]]` }
+          }], 'create page reference block');
 
           // Now query for the page UID - should exist immediately
           const results = await q(this.graph, findQuery, [pageTitle]) as FindResult[];
@@ -406,24 +396,17 @@ export class PageOperations {
     }
 
     // Add a "Processed: [[date]]" block as the last block of the newly created page
-    try {
-      const today = new Date();
-      const day = today.getDate();
-      const month = today.toLocaleString('en-US', { month: 'long' });
-      const year = today.getFullYear();
-      const formattedTodayTitle = `${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
+    const today = new Date();
+    const day = today.getDate();
+    const month = today.toLocaleString('en-US', { month: 'long' });
+    const year = today.getFullYear();
+    const formattedTodayTitle = `${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
 
-      await batchActions(this.graph, {
-        action: 'batch-actions',
-        actions: [{
-          action: 'create-block',
-          location: { 'parent-uid': pageUid, order: 'last' },
-          block: { string: `Processed: [[${formattedTodayTitle}]]` }
-        }]
-      });
-    } catch (error) {
-      console.error(`Failed to add Processed block: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    await executeBatchSafe(this.graph, [{
+      action: 'create-block',
+      location: { 'parent-uid': pageUid, order: 'last' },
+      block: { string: `Processed: [[${formattedTodayTitle}]]` }
+    }], 'add Processed block');
 
     return { success: true, uid: pageUid };
   }
@@ -434,40 +417,7 @@ export class PageOperations {
    * Returns null if not found.
    */
   async getPageUid(title: string): Promise<string | null> {
-    if (!title) {
-      return null;
-    }
-
-    // Try different case variations
-    const variations = [
-      title, // Original
-      capitalizeWords(title), // Each word capitalized
-      title.toLowerCase() // All lowercase
-    ];
-
-    // Check cache first for any variation
-    for (const variation of variations) {
-      const cachedUid = pageUidCache.get(variation);
-      if (cachedUid) {
-        return cachedUid;
-      }
-    }
-
-    // If not cached, query the database
-    const orClause = variations.map(v => `[?e :node/title "${v}"]`).join(' ');
-    const searchQuery = `[:find ?uid .
-                        :where [?e :block/uid ?uid]
-                               (or ${orClause})]`;
-
-    const result = await q(this.graph, searchQuery, []);
-    const uid = (result === null || result === undefined) ? null : String(result);
-
-    // Cache the result for the original title
-    if (uid) {
-      pageUidCache.set(title, uid);
-    }
-
-    return uid;
+    return getPageUidHelper(this.graph, title);
   }
 
   /**
@@ -487,15 +437,6 @@ export class PageOperations {
       return null;
     }
 
-    // Define ancestor rule for traversing block hierarchy
-    const ancestorRule = `[
-      [ (ancestor ?b ?a)
-        [?a :block/children ?b] ]
-      [ (ancestor ?b ?a)
-        [?parent :block/children ?b]
-        (ancestor ?parent ?a) ]
-    ]`;
-
     // Get all blocks under this page using ancestor rule
     const blocksQuery = `[:find ?block-uid ?block-str ?order ?parent-uid
                         :in $ % ?page-uid
@@ -506,7 +447,7 @@ export class PageOperations {
                                (ancestor ?block ?page)
                                [?parent :block/children ?block]
                                [?parent :block/uid ?parent-uid]]`;
-    const blocks = await q(this.graph, blocksQuery, [ancestorRule, uid]);
+    const blocks = await q(this.graph, blocksQuery, [ANCESTOR_RULE, uid]);
 
     if (!blocks || blocks.length === 0) {
       return { title, blocks: [] };
@@ -519,7 +460,7 @@ export class PageOperations {
                                  [?block :block/uid ?block-uid]
                                  [?block :block/heading ?heading]
                                  (ancestor ?block ?page)]`;
-    const headings = await q(this.graph, headingsQuery, [ancestorRule, uid]);
+    const headings = await q(this.graph, headingsQuery, [ANCESTOR_RULE, uid]);
 
     // Create a map of block UIDs to heading levels
     const headingMap = new Map<string, number>();
@@ -593,15 +534,6 @@ export class PageOperations {
       );
     }
 
-    // Define ancestor rule for traversing block hierarchy
-    const ancestorRule = `[
-      [ (ancestor ?b ?a)
-        [?a :block/children ?b] ]
-      [ (ancestor ?b ?a)
-        [?parent :block/children ?b]
-        (ancestor ?parent ?a) ]
-    ]`;
-
     // Get all blocks under this page using ancestor rule
     // Use UID to avoid case-sensitivity issues (getPageUid handles case variations)
     const blocksQuery = `[:find ?block-uid ?block-str ?order ?parent-uid
@@ -613,7 +545,7 @@ export class PageOperations {
                                (ancestor ?block ?page)
                                [?parent :block/children ?block]
                                [?parent :block/uid ?parent-uid]]`;
-    const blocks = await q(this.graph, blocksQuery, [ancestorRule, uid]);
+    const blocks = await q(this.graph, blocksQuery, [ANCESTOR_RULE, uid]);
 
     if (!blocks || blocks.length === 0) {
       if (format === 'raw') {
@@ -629,7 +561,7 @@ export class PageOperations {
                                  [?block :block/uid ?block-uid]
                                  [?block :block/heading ?heading]
                                  (ancestor ?block ?page)]`;
-    const headings = await q(this.graph, headingsQuery, [ancestorRule, uid]);
+    const headings = await q(this.graph, headingsQuery, [ANCESTOR_RULE, uid]);
 
     // Create a map of block UIDs to heading levels
     const headingMap = new Map<string, number>();
@@ -752,40 +684,7 @@ export class PageOperations {
     }
 
     // 1. Fetch existing page with raw block data
-    const pageTitle = String(title).trim();
-
-    // Try different case variations
-    const variations = [
-      pageTitle,
-      capitalizeWords(pageTitle),
-      pageTitle.toLowerCase()
-    ];
-
-    let pageUid: string | null = null;
-
-    // Check cache first
-    for (const variation of variations) {
-      const cachedUid = pageUidCache.get(variation);
-      if (cachedUid) {
-        pageUid = cachedUid;
-        break;
-      }
-    }
-
-    // If not cached, query the database
-    if (!pageUid) {
-      const orClause = variations.map(v => `[?e :node/title "${v}"]`).join(' ');
-      const searchQuery = `[:find ?uid .
-                          :where [?e :block/uid ?uid]
-                                 (or ${orClause})]`;
-      const result = await q(this.graph, searchQuery, []);
-      pageUid = (result === null || result === undefined) ? null : String(result);
-
-      if (pageUid) {
-        pageUidCache.set(pageTitle, pageUid);
-      }
-    }
-
+    const pageUid = await getPageUidHelper(this.graph, String(title).trim());
     if (!pageUid) {
       throw new McpError(
         ErrorCode.InvalidRequest,

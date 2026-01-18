@@ -154,4 +154,46 @@ export class SearchUtils {
 
     return tagMap;
   }
+
+  /**
+   * Generate case variations for case-insensitive search.
+   * Returns: [original, capitalized first letter, ALL CAPS, all lowercase]
+   */
+  static getCaseVariations(text: string, caseSensitive: boolean = false): string[] {
+    if (caseSensitive) {
+      return [text];
+    }
+    return [
+      text,
+      text.charAt(0).toUpperCase() + text.slice(1),
+      text.toUpperCase(),
+      text.toLowerCase()
+    ];
+  }
+
+  /**
+   * Build OR where clause for case-insensitive text search.
+   * @param text - The search text
+   * @param variable - The Datomic variable name (e.g., "?block-str")
+   * @param caseSensitive - Whether to use case-sensitive matching
+   * @returns Datomic OR clause string
+   */
+  static buildTextSearchClause(text: string, variable: string, caseSensitive: boolean = false): string {
+    const variations = this.getCaseVariations(text, caseSensitive);
+    const clauses = variations.map(term => `[(clojure.string/includes? ${variable} "${term}")]`);
+    return `(or ${clauses.join(' ')})`;
+  }
+
+  /**
+   * Build OR where clause for case-insensitive tag/page title matching.
+   * @param tag - The tag/page title to match
+   * @param variable - The Datomic variable name (e.g., "?ref-page")
+   * @param caseSensitive - Whether to use case-sensitive matching
+   * @returns Datomic OR clause string
+   */
+  static buildTagMatchClause(tag: string, variable: string, caseSensitive: boolean = false): string {
+    const variations = this.getCaseVariations(tag, caseSensitive);
+    const clauses = variations.map(t => `[${variable} :node/title "${t}"]`);
+    return `(or ${clauses.join(' ')})`;
+  }
 }

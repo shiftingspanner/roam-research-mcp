@@ -1,12 +1,12 @@
-import { Graph, q, createPage, batchActions } from '@roam-research/roam-api-sdk';
+import { Graph, q } from '@roam-research/roam-api-sdk';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { formatRoamDate } from '../../utils/helpers.js';
 import { generateBlockUid } from '../../markdown-utils.js';
 import { ANCESTOR_RULE } from '../../search/ancestor-rule.js';
 import { resolveRefs } from '../helpers/refs.js';
+import { getOrCreateTodayPage } from '../helpers/page-resolution.js';
+import { executeBatch } from '../helpers/batch-utils.js';
 import { SearchOperations } from './search/index.js';
 import type { SearchResult } from '../types/index.js';
-import { pageUidCache } from '../../cache/page-uid-cache.js';
 
 export class MemoryOperations {
   private searchOps: SearchOperations;
@@ -24,50 +24,8 @@ export class MemoryOperations {
     parent_uid?: string,
     include_memories_tag: boolean = true
   ): Promise<{ success: boolean; block_uid?: string; parent_uid?: string }> {
-    // Get today's date
-    const today = new Date();
-    const dateStr = formatRoamDate(today);
-
-    let pageUid: string;
-
-    // Check cache first for today's page
-    const cachedUid = pageUidCache.get(dateStr);
-    if (cachedUid) {
-      pageUid = cachedUid;
-    } else {
-      // Try to find today's page
-      const findQuery = `[:find ?uid :in $ ?title :where [?e :node/title ?title] [?e :block/uid ?uid]]`;
-      const findResults = await q(this.graph, findQuery, [dateStr]) as [string][];
-
-      if (findResults && findResults.length > 0) {
-        pageUid = findResults[0][0];
-        pageUidCache.set(dateStr, pageUid);
-      } else {
-        // Create today's page if it doesn't exist
-        try {
-          await createPage(this.graph, {
-            action: 'create-page',
-            page: { title: dateStr }
-          });
-
-          // Get the new page's UID
-          const results = await q(this.graph, findQuery, [dateStr]) as [string][];
-          if (!results || results.length === 0) {
-            throw new McpError(
-              ErrorCode.InternalError,
-              'Could not find created today\'s page'
-            );
-          }
-          pageUid = results[0][0];
-          pageUidCache.onPageCreated(dateStr, pageUid);
-        } catch (error) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            'Failed to create today\'s page'
-          );
-        }
-      }
-    }
+    // Get or create today's daily page
+    const pageUid = await getOrCreateTodayPage(this.graph);
 
     // Determine parent block for the memory
     let targetParentUid: string;
@@ -91,22 +49,12 @@ export class MemoryOperations {
       } else {
         // Create the heading block
         const headingBlockUid = generateBlockUid();
-        try {
-          await batchActions(this.graph, {
-            action: 'batch-actions',
-            actions: [{
-              action: 'create-block',
-              location: { 'parent-uid': pageUid, order: 'last' },
-              block: { uid: headingBlockUid, string: heading }
-            }]
-          });
-          targetParentUid = headingBlockUid;
-        } catch (error) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Failed to create heading block: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
+        await executeBatch(this.graph, [{
+          action: 'create-block',
+          location: { 'parent-uid': pageUid, order: 'last' },
+          block: { uid: headingBlockUid, string: heading }
+        }], 'create heading block');
+        targetParentUid = headingBlockUid;
       }
     } else {
       // Default: use daily page root
@@ -146,24 +94,7 @@ export class MemoryOperations {
       }
     }];
 
-    try {
-      const result = await batchActions(this.graph, {
-        action: 'batch-actions',
-        actions
-      });
-
-      if (!result) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          'Failed to create memory block via batch action'
-        );
-      }
-    } catch (error) {
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to create memory block: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
+    await executeBatch(this.graph, actions, 'create memory block');
 
     return { success: true, block_uid: blockUid, parent_uid: targetParentUid };
   }

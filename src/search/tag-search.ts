@@ -2,7 +2,6 @@ import { q } from '@roam-research/roam-api-sdk';
 import type { Graph } from '@roam-research/roam-api-sdk';
 import { BaseSearchHandler, TagSearchParams, SearchResult } from './types.js';
 import { SearchUtils } from './utils.js';
-import { resolveRefs } from '../tools/helpers/refs.js';
 
 export class TagSearchHandler extends BaseSearchHandler {
   constructor(
@@ -47,21 +46,7 @@ export class TagSearchHandler extends BaseSearchHandler {
       targetPageUid = await SearchUtils.findPageByTitleOrUid(this.graph, page_title_uid);
     }
 
-    const searchTags: string[] = [];
-    if (case_sensitive) {
-      searchTags.push(primary_tag);
-    } else {
-      searchTags.push(primary_tag);
-      searchTags.push(primary_tag.charAt(0).toUpperCase() + primary_tag.slice(1));
-      searchTags.push(primary_tag.toUpperCase());
-      searchTags.push(primary_tag.toLowerCase());
-    }
-
-    const tagWhereClauses = searchTags.map(tag => {
-      // Roam tags can be [[tag name]] or #tag-name or #[[tag name]]
-      // The :node/title for a tag page is just the tag name without any # or [[ ]]
-      return `[?ref-page :node/title "${tag}"]`;
-    }).join(' ');
+    const tagMatchClause = SearchUtils.buildTagMatchClause(primary_tag, '?ref-page', case_sensitive);
 
     let inClause = `:in $`;
     let queryLimit = limit === -1 ? '' : `:limit ${limit}`;
@@ -69,7 +54,7 @@ export class TagSearchHandler extends BaseSearchHandler {
     let queryOrder = `:order ?page-edit-time asc ?block-uid asc`; // Sort by page edit time, then block UID
 
     let queryWhereClauses = `
-                      (or ${tagWhereClauses})
+                      ${tagMatchClause}
                       [?b :block/refs ?ref-page]
                       [?b :block/string ?block-str]
                       [?b :block/uid ?block-uid]
@@ -119,12 +104,7 @@ export class TagSearchHandler extends BaseSearchHandler {
     const totalCount = totalCountResults[0] ? totalCountResults[0][0] : 0;
 
     // Resolve block references in content
-    const resolvedResults = await Promise.all(
-      rawResults.map(async ([uid, content, pageTitle, created, modified]) => {
-        const resolvedContent = await resolveRefs(this.graph, content);
-        return [uid, resolvedContent, pageTitle, created, modified] as [string, string, string?, number?, number?];
-      })
-    );
+    const resolvedResults = await this.resolveBlockRefs(rawResults);
 
     const searchDescription = `referencing "${primary_tag}"`;
     const formattedResults = SearchUtils.formatSearchResults(resolvedResults, searchDescription, !targetPageUid);

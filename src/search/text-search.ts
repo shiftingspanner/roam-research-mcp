@@ -2,7 +2,6 @@ import { q } from '@roam-research/roam-api-sdk';
 import type { Graph } from '@roam-research/roam-api-sdk';
 import { BaseSearchHandler, SearchResult, TextSearchParams } from './types.js';
 import { SearchUtils } from './utils.js';
-import { resolveRefs } from '../tools/helpers/refs.js';
 
 export class TextSearchHandler extends BaseSearchHandler {
   constructor(
@@ -26,20 +25,7 @@ export class TextSearchHandler extends BaseSearchHandler {
       targetPageUid = await SearchUtils.findPageByTitleOrUid(this.graph, page_title_uid);
     }
 
-    const searchTerms: string[] = [];
-    if (case_sensitive) {
-      searchTerms.push(text);
-    } else {
-      searchTerms.push(text);
-      // Add capitalized version (e.g., "Hypnosis")
-      searchTerms.push(text.charAt(0).toUpperCase() + text.slice(1));
-      // Add all caps version (e.g., "HYPNOSIS")
-      searchTerms.push(text.toUpperCase());
-      // Add all lowercase version (e.g., "hypnosis")
-      searchTerms.push(text.toLowerCase());
-    }
-
-    const whereClauses = searchTerms.map(term => `[(clojure.string/includes? ?block-str "${term}")]`).join(' ');
+    const textSearchClause = SearchUtils.buildTextSearchClause(text, '?block-str', case_sensitive);
 
     let queryStr: string;
     let queryParams: (string | number)[] = [];
@@ -50,7 +36,7 @@ export class TextSearchHandler extends BaseSearchHandler {
 
     let baseQueryWhereClauses = `
                     [?b :block/string ?block-str]
-                    (or ${whereClauses})
+                    ${textSearchClause}
                     [?b :block/uid ?block-uid]
                     [?b :block/page ?p]
                     [?p :node/title ?page-title]
@@ -97,12 +83,7 @@ export class TextSearchHandler extends BaseSearchHandler {
     const totalCount = totalCountResults[0] ? totalCountResults[0][0] : 0;
 
     // Resolve block references in content
-    const resolvedResults = await Promise.all(
-      rawResults.map(async ([uid, content, pageTitle, created, modified]) => {
-        const resolvedContent = await resolveRefs(this.graph, content);
-        return [uid, resolvedContent, pageTitle, created, modified] as [string, string, string?, number?, number?];
-      })
-    );
+    const resolvedResults = await this.resolveBlockRefs(rawResults);
 
     const searchDescription = `containing "${text}"`;
     const formattedResults = SearchUtils.formatSearchResults(resolvedResults, searchDescription, !targetPageUid);

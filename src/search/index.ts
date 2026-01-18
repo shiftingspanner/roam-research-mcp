@@ -1,5 +1,6 @@
 export * from './types.js';
 export * from './utils.js';
+export * from './ancestor-rule.js';
 export * from './tag-search.js';
 export * from './status-search.js';
 export * from './block-ref-search.js';

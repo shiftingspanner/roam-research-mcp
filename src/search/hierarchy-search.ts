@@ -2,6 +2,7 @@ import { q } from '@roam-research/roam-api-sdk';
 import type { Graph } from '@roam-research/roam-api-sdk';
 import { BaseSearchHandler, SearchResult } from './types.js';
 import { SearchUtils } from './utils.js';
+import { ANCESTOR_RULE } from './ancestor-rule.js';
 import { resolveRefs } from '../tools/helpers/refs.js';
 
 export interface HierarchySearchParams {
@@ -36,15 +37,6 @@ export class HierarchySearchHandler extends BaseSearchHandler {
       targetPageUid = await SearchUtils.findPageByTitleOrUid(this.graph, page_title_uid);
     }
 
-    // Define ancestor rule for recursive traversal
-    const ancestorRule = `[
-      [ (ancestor ?child ?parent) 
-          [?parent :block/children ?child] ]
-      [ (ancestor ?child ?a) 
-          [?parent :block/children ?child] 
-          (ancestor ?parent ?a) ]
-    ]`;
-
     let queryStr: string;
     let queryParams: any[];
 
@@ -60,7 +52,7 @@ export class HierarchySearchHandler extends BaseSearchHandler {
                            [?b :block/uid ?block-uid]
                            [?b :block/page ?p]
                            [(get-else $ ?b :block/path-length 1) ?depth]]`;
-        queryParams = [ancestorRule, parent_uid, targetPageUid];
+        queryParams = [ANCESTOR_RULE, parent_uid, targetPageUid];
       } else {
         queryStr = `[:find ?block-uid ?block-str ?page-title ?depth
                     :in $ % ?parent-uid
@@ -71,7 +63,7 @@ export class HierarchySearchHandler extends BaseSearchHandler {
                            [?b :block/page ?p]
                            [?p :node/title ?page-title]
                            [(get-else $ ?b :block/path-length 1) ?depth]]`;
-        queryParams = [ancestorRule, parent_uid];
+        queryParams = [ANCESTOR_RULE, parent_uid];
       }
     } else {
       // Search for ancestors using the same rule
@@ -85,7 +77,7 @@ export class HierarchySearchHandler extends BaseSearchHandler {
                            [?b :block/uid ?block-uid]
                            [?b :block/page ?p]
                            [(get-else $ ?b :block/path-length 1) ?depth]]`;
-        queryParams = [ancestorRule, child_uid, targetPageUid];
+        queryParams = [ANCESTOR_RULE, child_uid, targetPageUid];
       } else {
         queryStr = `[:find ?block-uid ?block-str ?page-title ?depth
                     :in $ % ?child-uid
@@ -96,7 +88,7 @@ export class HierarchySearchHandler extends BaseSearchHandler {
                            [?b :block/page ?p]
                            [?p :node/title ?page-title]
                            [(get-else $ ?b :block/path-length 1) ?depth]]`;
-        queryParams = [ancestorRule, child_uid];
+        queryParams = [ANCESTOR_RULE, child_uid];
       }
     }
 

@@ -1,4 +1,5 @@
 import type { Graph } from '@roam-research/roam-api-sdk';
+import { resolveRefs } from '../tools/helpers/refs.js';
 
 export interface SearchMatch {
   block_uid: string;
@@ -46,4 +47,21 @@ export interface TextSearchParams {
 export abstract class BaseSearchHandler implements SearchHandler {
   constructor(protected graph: Graph) { }
   abstract execute(): Promise<SearchResult>;
+
+  /**
+   * Resolve block references in search results.
+   * Handles both 5-tuple [uid, content, pageTitle?, created?, modified?]
+   * and 3-tuple [uid, content, pageTitle?] formats.
+   */
+  protected async resolveBlockRefs<T extends [string, string, ...any[]]>(
+    results: T[]
+  ): Promise<T[]> {
+    return Promise.all(
+      results.map(async (result) => {
+        const [uid, content, ...rest] = result;
+        const resolvedContent = await resolveRefs(this.graph, content);
+        return [uid, resolvedContent, ...rest] as T;
+      })
+    );
+  }
 }

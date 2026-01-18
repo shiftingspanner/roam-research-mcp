@@ -1,5 +1,13 @@
 # Changelog
 
+### v2.12.0 (2026-01-18)
+- **Refactor:** Consolidated redundant code patterns across codebase (~365 lines reduced)
+  - Centralized ancestor rule in `src/search/ancestor-rule.ts`
+  - Shared page UID resolution utilities in `src/tools/helpers/page-resolution.ts`
+  - Added `resolveBlockRefs` method to `BaseSearchHandler` for consistent block ref resolution
+  - Shared case-insensitive search utilities in `SearchUtils` class
+  - Batch error handling utilities in `src/tools/helpers/batch-utils.ts`
+
 ### v2.10.3 (2026-01-18)
 - **New:** `roam_process_batch_actions` now parses markdown heading syntax (`#`, `##`, `###`)
   - `"### Description"` automatically becomes heading level 3 with text "Description"

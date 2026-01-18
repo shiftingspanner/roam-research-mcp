@@ -1,7 +1,9 @@
-import { Graph, q, createPage, createBlock, batchActions } from '@roam-research/roam-api-sdk';
+import { Graph, q, createPage, createBlock } from '@roam-research/roam-api-sdk';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { formatRoamDate } from '../../utils/helpers.js';
-import { capitalizeWords, getNestedUids, getNestedUidsByText } from '../helpers/text.js';
+import { getNestedUids, getNestedUidsByText } from '../helpers/text.js';
+import { findOrCreatePage, getPageUid, getOrCreateTodayPage } from '../helpers/page-resolution.js';
+import { executeBatch } from '../helpers/batch-utils.js';
 import {
   parseMarkdown,
   convertToRoamActions,
@@ -11,7 +13,6 @@ import {
 } from '../../markdown-utils.js';
 import { executeStagedBatch } from '../../shared/staged-batch.js';
 import type { OutlineItem, NestedBlock } from '../types/index.js';
-import { pageUidCache } from '../../cache/page-uid-cache.js';
 
 // Threshold for skipping child fetch during verification
 const VERIFICATION_THRESHOLD = 5;
@@ -72,25 +73,15 @@ export class OutlineOperations {
       for (let retry = 0; retry < maxRetries; retry++) {
         console.log(`Attempt ${retry + 1}/${maxRetries} to create block "${content}" under "${parentUid}"`);
 
-        // Create block using batchActions
-        const batchResult = await batchActions(this.graph, {
-          action: 'batch-actions',
-          actions: [{
-            action: 'create-block',
-            location: {
-              'parent-uid': parentUid,
-              order: 'last'
-            },
-            block: { string: content }
-          }]
-        });
-
-        if (!batchResult) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Failed to create block "${content}" via batch action`
-          );
-        }
+        // Create block using batch action
+        await executeBatch(this.graph, [{
+          action: 'create-block',
+          location: {
+            'parent-uid': parentUid,
+            order: 'last'
+          },
+          block: { string: content }
+        }], `create block "${content}"`);
 
         // Wait with exponential backoff
         const delay = initialDelay * Math.pow(2, retry);
@@ -271,81 +262,9 @@ export class OutlineOperations {
       );
     }
 
-    // Helper function to find or create page with retries and caching
-    const findOrCreatePage = async (titleOrUid: string, maxRetries = 3, delayMs = 500): Promise<string> => {
-      const variations = [
-        titleOrUid, // Original
-        capitalizeWords(titleOrUid), // Each word capitalized
-        titleOrUid.toLowerCase() // All lowercase
-      ];
-
-      // Check cache first for any variation
-      for (const variation of variations) {
-        const cachedUid = pageUidCache.get(variation);
-        if (cachedUid) {
-          return cachedUid;
-        }
-      }
-
-      const titleQuery = `[:find ?uid :in $ ?title :where [?e :node/title ?title] [?e :block/uid ?uid]]`;
-
-      for (let retry = 0; retry < maxRetries; retry++) {
-        // Try each case variation
-        for (const variation of variations) {
-          const findResults = await q(this.graph, titleQuery, [variation]) as [string][];
-          if (findResults && findResults.length > 0) {
-            const uid = findResults[0][0];
-            // Cache the result
-            pageUidCache.set(titleOrUid, uid);
-            return uid;
-          }
-        }
-
-        // If not found as title, try as UID
-        const uidQuery = `[:find ?uid
-                          :where [?e :block/uid "${titleOrUid}"]
-                                 [?e :block/uid ?uid]]`;
-        const uidResult = await q(this.graph, uidQuery, []);
-        if (uidResult && uidResult.length > 0) {
-          return uidResult[0][0];
-        }
-
-        // If still not found and this is the first retry, try to create the page
-        if (retry === 0) {
-          const success = await createPage(this.graph, {
-            action: 'create-page',
-            page: { title: titleOrUid }
-          });
-
-          // Even if createPage returns false, the page might still have been created
-          // Wait a bit and continue to next retry
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-          continue;
-        }
-
-        if (retry < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-      }
-
-      // One more attempt to find and cache after creation attempts
-      for (const variation of variations) {
-        const findResults = await q(this.graph, titleQuery, [variation]) as [string][];
-        if (findResults && findResults.length > 0) {
-          const uid = findResults[0][0];
-          pageUidCache.onPageCreated(titleOrUid, uid);
-          return uid;
-        }
-      }
-
-      throw new McpError(
-        ErrorCode.InvalidRequest,
-        `Failed to find or create page "${titleOrUid}" after multiple attempts`
-      );
-    };
-
     // Get or create the target page
     const targetPageUid = await findOrCreatePage(
+      this.graph,
       page_title_uid || formatRoamDate(new Date())
     );
 
@@ -521,71 +440,19 @@ export class OutlineOperations {
       }
       targetPageUid = page_uid;
     } else if (page_title) {
-      // Check cache first
-      const cachedUid = pageUidCache.get(page_title);
-      if (cachedUid) {
-        targetPageUid = cachedUid;
-      } else {
-        const findQuery = `[:find ?uid :in $ ?title :where [?e :node/title ?title] [?e :block/uid ?uid]]`;
-        const findResults = await q(this.graph, findQuery, [page_title]) as [string][];
-
-        if (findResults && findResults.length > 0) {
-          targetPageUid = findResults[0][0];
-          pageUidCache.set(page_title, targetPageUid);
-        } else {
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            `Page with title "${page_title}" not found`
-          );
-        }
+      const foundUid = await getPageUid(this.graph, page_title);
+      if (!foundUid) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Page with title "${page_title}" not found`
+        );
       }
+      targetPageUid = foundUid;
     }
 
     // If no page specified, use today's date page
     if (!targetPageUid) {
-      const today = new Date();
-      const dateStr = formatRoamDate(today);
-
-      // Check cache for today's page
-      const cachedDailyUid = pageUidCache.get(dateStr);
-      if (cachedDailyUid) {
-        targetPageUid = cachedDailyUid;
-      } else {
-        const findQuery = `[:find ?uid :in $ ?title :where [?e :node/title ?title] [?e :block/uid ?uid]]`;
-        const findResults = await q(this.graph, findQuery, [dateStr]) as [string][];
-
-        if (findResults && findResults.length > 0) {
-          targetPageUid = findResults[0][0];
-          pageUidCache.set(dateStr, targetPageUid);
-        } else {
-          // Create today's page
-          try {
-            await createPage(this.graph, {
-              action: 'create-page',
-              page: { title: dateStr }
-            });
-
-            // Small delay for new page to be fully available as parent in Roam
-            // (fixes "Parent entity doesn't exist" error when adding content immediately)
-            await new Promise(resolve => setTimeout(resolve, 400));
-
-            const results = await q(this.graph, findQuery, [dateStr]) as [string][];
-            if (!results || results.length === 0) {
-              throw new McpError(
-                ErrorCode.InternalError,
-                'Could not find created today\'s page'
-              );
-            }
-            targetPageUid = results[0][0];
-            pageUidCache.onPageCreated(dateStr, targetPageUid);
-          } catch (error) {
-            throw new McpError(
-              ErrorCode.InternalError,
-              `Failed to create today's page: ${error instanceof Error ? error.message : String(error)}`
-            );
-          }
-        }
-      }
+      targetPageUid = await getOrCreateTodayPage(this.graph);
     }
 
     // Now get the parent block UID
@@ -633,17 +500,7 @@ export class OutlineOperations {
       const actions = convertToRoamActions(nodes, targetParentUid, order);
 
       // Execute batch actions to add content
-      const result = await batchActions(this.graph, {
-        action: 'batch-actions',
-        actions
-      });
-
-      if (!result) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          'Failed to import nested markdown content'
-        );
-      }
+      await executeBatch(this.graph, actions, 'import nested markdown content');
 
       // Skip nested structure fetch for large imports to reduce API calls
       const skipNestedFetch = actions.length > VERIFICATION_THRESHOLD;
@@ -668,27 +525,15 @@ export class OutlineOperations {
         created_uids: createdUids
       };
     } else {
-      // Create a simple block for non-nested content using batchActions
-      const actions = [{
+      // Create a simple block for non-nested content
+      await executeBatch(this.graph, [{
         action: 'create-block',
         location: {
           "parent-uid": targetParentUid,
           "order": order
         },
         block: { string: content }
-      }];
-
-      try {
-        await batchActions(this.graph, {
-          action: 'batch-actions',
-          actions
-        });
-      } catch (error) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Failed to create content block: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
+      }], 'create content block');
 
       // For single-line content, we still need to fetch the UID and construct a NestedBlock
       const createdUids: NestedBlock[] = [];

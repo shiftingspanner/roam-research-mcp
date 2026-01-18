@@ -25,7 +25,7 @@ export class ToolHandlers {
   private tableOps: TableOperations;
   private cachedCheatsheet: string | null = null;
 
-  constructor(private graph: Graph, memoriesTag: string = 'Memories') {
+  constructor(private graph: Graph, memoriesTag: string | null = 'Memories') {
     this.pageOps = new PageOperations(graph);
     this.blockOps = new BlockOperations(graph);
     this.blockRetrievalOps = new BlockRetrievalOperations(graph);
