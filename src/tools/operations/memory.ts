@@ -2,6 +2,7 @@ import { Graph, q, createPage, batchActions } from '@roam-research/roam-api-sdk'
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { formatRoamDate } from '../../utils/helpers.js';
 import { generateBlockUid } from '../../markdown-utils.js';
+import { ANCESTOR_RULE } from '../../search/ancestor-rule.js';
 import { resolveRefs } from '../helpers/refs.js';
 import { SearchOperations } from './search/index.js';
 import type { SearchResult } from '../types/index.js';
@@ -9,9 +10,9 @@ import { pageUidCache } from '../../cache/page-uid-cache.js';
 
 export class MemoryOperations {
   private searchOps: SearchOperations;
-  private memoriesTag: string;
+  private memoriesTag: string | null;
 
-  constructor(private graph: Graph, memoriesTag: string = 'Memories') {
+  constructor(private graph: Graph, memoriesTag: string | null = 'Memories') {
     this.searchOps = new SearchOperations(graph);
     this.memoriesTag = memoriesTag;
   }
@@ -112,8 +113,13 @@ export class MemoryOperations {
       targetParentUid = pageUid;
     }
 
-    // Get memories tag (use instance property)
-    const memoriesTag: string | undefined = include_memories_tag ? this.memoriesTag : undefined;
+    // Get memories tag (use instance property) and format as Roam tag
+    // If memoriesTag is null (disabled for this graph), treat as if include_memories_tag is false
+    const memoriesTagFormatted: string | undefined = (include_memories_tag && this.memoriesTag)
+      ? (this.memoriesTag.includes(' ') || this.memoriesTag.includes('/')
+          ? `#[[${this.memoriesTag}]]`
+          : `#${this.memoriesTag}`)
+      : undefined;
 
     // Format categories as Roam tags if provided
     const categoryTags = categories?.map(cat => {
@@ -122,7 +128,7 @@ export class MemoryOperations {
     }) ?? [];
 
     // Create block with memory, then all tags together at the end
-    const tags = memoriesTag ? [...categoryTags, memoriesTag] : categoryTags;
+    const tags = memoriesTagFormatted ? [...categoryTags, memoriesTagFormatted] : categoryTags;
     const blockContent = [memory, ...tags].join(' ').trim();
 
     // Pre-generate UID so we can return it
@@ -163,32 +169,28 @@ export class MemoryOperations {
   }
 
   async recall(sort_by: 'newest' | 'oldest' = 'newest', filter_tag?: string): Promise<{ success: boolean; memories: string[] }> {
+    // If memories tag is disabled for this graph, return empty
+    if (!this.memoriesTag) {
+      return { success: true, memories: [] };
+    }
+
     // Extract the tag text, removing any formatting
     const tagText = this.memoriesTag
       .replace(/^#/, '')  // Remove leading #
       .replace(/^\[\[/, '').replace(/\]\]$/, '');  // Remove [[ and ]]
 
     try {
-      // Get page blocks using query to access actual block content
-      const ancestorRule = `[
-        [ (ancestor ?b ?a)
-          [?a :block/children ?b] ]
-        [ (ancestor ?b ?a)
-          [?parent :block/children ?b]
-          (ancestor ?parent ?a) ]
-      ]`;
-
       // Query to find all blocks on the page
       const pageQuery = `[:find ?string ?time
                          :in $ % ?title
-                         :where 
+                         :where
                          [?page :node/title ?title]
                          [?block :block/string ?string]
                          [?block :create/time ?time]
                          (ancestor ?block ?page)]`;
-      
+
       // Execute query
-      const pageResults = await q(this.graph, pageQuery, [ancestorRule, tagText]) as [string, number][];
+      const pageResults = await q(this.graph, pageQuery, [ANCESTOR_RULE, tagText]) as [string, number][];
 
       // Process page blocks with sorting
       let pageMemories = pageResults
