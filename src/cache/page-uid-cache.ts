@@ -1,10 +1,15 @@
 /**
- * Simple in-memory cache for page title -> UID mappings.
+ * Simple in-memory cache for page title -> UID mappings and UID existence tracking.
  * Pages are stable entities that rarely get deleted, making them safe to cache.
  * This reduces redundant API queries when looking up the same page multiple times.
+ *
+ * The cache tracks two things:
+ * 1. Title -> UID mappings (for getPageUid lookups)
+ * 2. Known existing UIDs (for existence validation before batch operations)
  */
 class PageUidCache {
   private cache = new Map<string, string>(); // title (lowercase) -> UID
+  private knownUids = new Set<string>(); // UIDs confirmed to exist
 
   /**
    * Get a cached page UID by title.
@@ -17,11 +22,13 @@ class PageUidCache {
 
   /**
    * Cache a page title -> UID mapping.
+   * Also marks the UID as known to exist.
    * @param title - Page title (will be stored lowercase)
    * @param uid - Page UID
    */
   set(title: string, uid: string): void {
     this.cache.set(title.toLowerCase(), uid);
+    this.knownUids.add(uid);
   }
 
   /**
@@ -30,6 +37,33 @@ class PageUidCache {
    */
   has(title: string): boolean {
     return this.cache.has(title.toLowerCase());
+  }
+
+  /**
+   * Check if a UID is known to exist.
+   * @param uid - Page or block UID
+   */
+  hasUid(uid: string): boolean {
+    return this.knownUids.has(uid);
+  }
+
+  /**
+   * Mark a UID as known to exist (without title mapping).
+   * Use this when you've verified a UID exists but don't know/need its title.
+   * @param uid - Page or block UID
+   */
+  addUid(uid: string): void {
+    this.knownUids.add(uid);
+  }
+
+  /**
+   * Mark multiple UIDs as known to exist.
+   * @param uids - Array of page or block UIDs
+   */
+  addUids(uids: string[]): void {
+    for (const uid of uids) {
+      this.knownUids.add(uid);
+    }
   }
 
   /**
@@ -46,13 +80,21 @@ class PageUidCache {
    */
   clear(): void {
     this.cache.clear();
+    this.knownUids.clear();
   }
 
   /**
-   * Get the current cache size.
+   * Get the current title cache size.
    */
   get size(): number {
     return this.cache.size;
+  }
+
+  /**
+   * Get the current known UIDs cache size.
+   */
+  get uidCacheSize(): number {
+    return this.knownUids.size;
   }
 }
 

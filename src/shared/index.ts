@@ -5,3 +5,4 @@
 export * from './validation.js';
 export * from './errors.js';
 export * from './staged-batch.js';
+export * from './page-validator.js';

@@ -11,6 +11,7 @@ import {
   createRateLimitError,
   type StructuredError
 } from '../../shared/errors.js';
+import { ensurePagesExist } from '../../shared/page-validator.js';
 
 // Regex to match UID placeholders like {{uid:parent1}}, {{uid:section-a}}, etc.
 const UID_PLACEHOLDER_REGEX = /\{\{uid:([^}]+)\}\}/g;
@@ -162,6 +163,36 @@ export class BatchOperations {
           } : undefined
         },
         validation_passed: false,
+        actions_attempted: 0
+      };
+    }
+
+    // Step 0.5: Validate parent pages exist (auto-creates daily pages)
+    // This uses batched queries and caching to minimize API calls
+    try {
+      const pageValidation = await ensurePagesExist(this.graph, actions, {
+        maxRetries: this.rateLimitConfig.maxRetries,
+        initialDelayMs: this.rateLimitConfig.initialDelayMs,
+        maxDelayMs: this.rateLimitConfig.maxDelayMs,
+        backoffMultiplier: this.rateLimitConfig.backoffMultiplier
+      });
+
+      if (pageValidation.created > 0) {
+        console.log(`[batch] Auto-created ${pageValidation.created} daily page(s), checked ${pageValidation.checked}, cached ${pageValidation.cached}`);
+      }
+    } catch (error) {
+      // Page validation failed - return structured error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: {
+          code: 'PAGE_NOT_FOUND',
+          message: errorMessage,
+          recovery: {
+            suggestion: 'Create the missing page(s) first with roam_create_page, or verify the parent-uid is correct'
+          }
+        },
+        validation_passed: true,  // Syntax validation passed, page validation failed
         actions_attempted: 0
       };
     }

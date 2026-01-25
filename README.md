@@ -199,7 +199,7 @@ Add to your MCP settings file (e.g., `~/Library/Application Support/Claude/claud
       "command": "npx",
       "args": ["-y", "roam-research-mcp"],
       "env": {
-        "ROAM_GRAPHS": "{\"personal\":{\"token\":\"token-1\",\"graph\":\"personal-db\",\"memoriesTag\":\"#[[Memories]]\"},\"work\":{\"token\":\"token-2\",\"graph\":\"work-db\",\"protected\":true\"}}",
+        "ROAM_GRAPHS": "{\"personal\":{\"token\":\"token-1\",\"graph\":\"personal-db\",\"memoriesTag\":\"#[[Memories]]\"},\"work\":{\"token\":\"token-2\",\"graph\":\"work-db\",\"protected\":true}}",
         "ROAM_DEFAULT_GRAPH": "personal",
         "ROAM_SYSTEM_WRITE_KEY": "your-secret-key"
       }
