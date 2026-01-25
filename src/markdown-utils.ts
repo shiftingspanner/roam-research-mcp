@@ -21,8 +21,13 @@ interface MarkdownNode {
   level: number;
   heading_level?: number;  // Optional heading level (1-3) for heading nodes
   children_view_type?: 'bullet' | 'document' | 'numbered'; // Optional view type for children
+  is_hr?: boolean; // True if this is a horizontal rule
   children: MarkdownNode[];
 }
+
+// Regex patterns for markdown elements
+const NUMBERED_LIST_REGEX = /^(\s*)\d+\.\s+(.*)$/;
+const HORIZONTAL_RULE_REGEX = /^(\s*)(-{3,}|\*{3,}|_{3,})\s*$/;
 
 /**
  * Check if text has a traditional markdown table
@@ -181,8 +186,13 @@ function parseMarkdown(markdown: string): MarkdownNode[] {
     }
     if (inCodeBlockFirstPass || trimmedLine === '') continue;
 
+    // Check for numbered list, bullet list, or plain line
+    const numberedMatch = line.match(NUMBERED_LIST_REGEX);
     const bulletMatch = trimmedLine.match(/^(\s*)[-*+]\s+/);
-    if (bulletMatch) {
+
+    if (numberedMatch) {
+      indentationSet.add(numberedMatch[1].length);
+    } else if (bulletMatch) {
       indentationSet.add(bulletMatch[1].length);
     } else {
       const indent = line.match(/^\s*/)?.[0].length ?? 0;
@@ -297,10 +307,46 @@ function parseMarkdown(markdown: string): MarkdownNode[] {
       continue;
     }
 
+    // Check for horizontal rule (---, ***, ___)
+    const hrMatch = line.match(HORIZONTAL_RULE_REGEX);
+    if (hrMatch) {
+      const hrIndentation = hrMatch[1].length;
+      const hrLevel = getLevel(hrIndentation);
+
+      const hrNode: MarkdownNode = {
+        content: '---',  // Roam's HR format
+        level: hrLevel,
+        is_hr: true,
+        children: []
+      };
+
+      while (stack.length > hrLevel) {
+        stack.pop();
+      }
+
+      if (hrLevel === 0 || !stack[hrLevel - 1]) {
+        rootNodes.push(hrNode);
+        stack[0] = hrNode;
+      } else {
+        stack[hrLevel - 1].children.push(hrNode);
+      }
+      stack[hrLevel] = hrNode;
+      continue;
+    }
+
     let indentation: number;
     let contentToParse: string;
+    let isNumberedItem = false;
+
+    // Check for numbered list item (1., 2., etc.)
+    const numberedMatch = line.match(NUMBERED_LIST_REGEX);
     const bulletMatch = trimmedLine.match(/^(\s*)[-*+]\s+/);
-    if (bulletMatch) {
+
+    if (numberedMatch) {
+      indentation = numberedMatch[1].length;
+      contentToParse = numberedMatch[2];
+      isNumberedItem = true;
+    } else if (bulletMatch) {
       indentation = bulletMatch[1].length;
       contentToParse = trimmedLine.substring(bulletMatch[0].length);
     } else {
@@ -325,8 +371,16 @@ function parseMarkdown(markdown: string): MarkdownNode[] {
     if (level === 0 || !stack[level - 1]) {
       rootNodes.push(node);
       stack[0] = node;
+      // Root-level numbered items: no parent to set view type on
+      // They'll appear as regular blocks (Roam doesn't support numbered view at root)
     } else {
-      stack[level - 1].children.push(node);
+      const parent = stack[level - 1];
+      parent.children.push(node);
+
+      // If this is the first numbered item under a parent, set parent's view type
+      if (isNumberedItem && parent.children_view_type !== 'numbered') {
+        parent.children_view_type = 'numbered';
+      }
     }
     stack[level] = node;
   }
@@ -404,6 +458,7 @@ function convertNodesToBlocks(nodes: MarkdownNode[]): BlockInfo[] {
     uid: generateBlockUid(),
     content: node.content,
     ...(node.heading_level && { heading_level: node.heading_level }),  // Preserve heading level if present
+    ...(node.children_view_type && { children_view_type: node.children_view_type }),  // Preserve view type for numbered lists
     children: convertNodesToBlocks(node.children)
   }));
 }

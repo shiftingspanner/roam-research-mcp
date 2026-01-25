@@ -1,5 +1,17 @@
 # Changelog
 
+### v2.13.0 (2026-01-25)
+- **Feature:** Markdown parser now handles numbered lists and horizontal rules
+  - Numbered list prefixes (`1.`, `2.`, etc.) are stripped from content
+  - Parent blocks of numbered items get `children-view-type: "numbered"`
+  - Horizontal rules (`---`, `***`, `___`) converted to Roam `---` format
+  - Affects: `roam_import_markdown`, `roam_create_outline`, CLI `roam save`
+- **Feature:** Page existence validation before batch operations
+  - New `PageValidator` with batched existence checking (1 API call for N UIDs)
+  - Auto-creates daily pages when `MM-DD-YYYY` format UIDs are missing
+  - Session-scoped UID cache reduces redundant API calls
+  - Clear error messages for missing non-daily pages
+
 ### v2.12.0 (2026-01-18)
 - **Refactor:** Consolidated redundant code patterns across codebase (~365 lines reduced)
   - Centralized ancestor rule in `src/search/ancestor-rule.ts`
