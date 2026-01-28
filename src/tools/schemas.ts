@@ -223,7 +223,7 @@ export const toolSchemas = {
   },
   roam_search_for_tag: {
     name: 'roam_search_for_tag',
-    description: 'Search for blocks containing a specific tag and optionally filter by blocks that also contain another tag nearby or exclude blocks with a specific tag. This tool supports pagination via the `limit` and `offset` parameters. Use this tool to search for memories tagged with the ROAM_MEMORIES_TAG.',
+    description: 'Search for blocks containing a specific tag. Use `primary_tag` for the tag to find, and optionally `page_title_uid` to limit search to a specific page. Supports pagination via `limit` and `offset`. Use this tool to search for memories tagged with the ROAM_MEMORIES_TAG.',
     inputSchema: {
       type: 'object',
       properties: withMultiGraphParams({

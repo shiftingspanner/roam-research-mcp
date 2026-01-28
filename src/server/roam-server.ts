@@ -266,6 +266,12 @@ export class RoamServer {
               page_title_uid?: string;
               near_tag?: string;
             };
+            if (!primary_tag) {
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                'Missing required parameter: primary_tag (the tag to search for). Use page_title_uid to limit search to a specific page.'
+              );
+            }
             const result = await toolHandlers.searchForTag(primary_tag, page_title_uid, near_tag);
             return {
               content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
