@@ -57,10 +57,10 @@ export const toolSchemas = {
         },
         format: {
           type: 'string',
-          enum: ['markdown', 'raw'],
+          enum: ['markdown', 'raw', 'structure'],
           default: 'raw',
           description:
-            "Format output as markdown or JSON. 'markdown' returns as string; 'raw' returns JSON string of the page's blocks"
+            "Format output as markdown, JSON, or structure. 'markdown' returns readable string; 'raw' returns full JSON with nested blocks; 'structure' returns flattened list optimized for surgical updates (uid, order, text preview, depth, parent_uid)"
         }
       }),
       required: ['title']

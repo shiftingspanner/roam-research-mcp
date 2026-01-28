@@ -55,6 +55,7 @@ interface GetOptions extends GraphOptions {
   desc?: boolean;
   groupBy?: string;
   uid?: boolean;
+  structure?: boolean;
 }
 
 /**
@@ -251,6 +252,7 @@ export function createGetCommand(): Command {
     .description('Fetch pages, blocks, or TODO/DONE items with optional ref expansion')
     .argument('[target]', 'Page title, block UID, or relative date. Reads from stdin if "-" or omitted.')
     .option('-j, --json', 'Output as JSON instead of markdown')
+    .option('-s, --structure', 'Output flattened structure with UIDs and order (for surgical updates)')
     .option('-d, --depth <n>', 'Child levels to fetch (default: 4)', '4')
     .option('-r, --refs [n]', 'Expand ((uid)) refs in output (default depth: 1, max: 4)')
     .option('-f, --flat', 'Flatten hierarchy to single-level list')
@@ -398,6 +400,23 @@ Note: For flat results with UIDs, use 'roam search' instead.
           }
 
           console.log(pageUid);
+          return;
+        }
+
+        // Handle --structure flag: return flattened structure for surgical updates
+        if (options.structure) {
+          if (!target || target === '-') {
+            exitWithError('--structure requires a page title argument');
+          }
+
+          const resolvedTarget = resolveRelativeDate(target);
+          if (options.debug && resolvedTarget !== target) {
+            printDebug('Resolved date', `${target} → ${resolvedTarget}`);
+          }
+
+          const pageOps = new PageOperations(graph);
+          const result = await pageOps.fetchPageByTitle(resolvedTarget, 'structure');
+          console.log(result);
           return;
         }
 

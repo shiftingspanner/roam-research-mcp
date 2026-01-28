@@ -46,7 +46,7 @@ export class ToolHandlers {
     return this.pageOps.createPage(title, content);
   }
 
-  async fetchPageByTitle(title: string, format?: 'markdown' | 'raw') {
+  async fetchPageByTitle(title: string, format?: 'markdown' | 'raw' | 'structure') {
     return this.pageOps.fetchPageByTitle(title, format);
   }
 

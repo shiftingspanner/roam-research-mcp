@@ -518,7 +518,7 @@ export class PageOperations {
 
   async fetchPageByTitle(
     title: string,
-    format: 'markdown' | 'raw' = 'raw'
+    format: 'markdown' | 'raw' | 'structure' = 'raw'
   ): Promise<string> {
     if (!title) {
       throw new McpError(ErrorCode.InvalidRequest, 'title is required');
@@ -620,6 +620,62 @@ export class PageOperations {
       // Resolve structured references for raw JSON output
       await resolveBlockRefs(this.graph, allBlocks, 2);
       return JSON.stringify(rootBlocks);
+    }
+
+    if (format === 'structure') {
+      // Flatten the tree into a list optimized for surgical updates
+      // Each entry has: uid, order, text (preview), depth, parent_uid
+      interface StructureBlock {
+        uid: string;
+        order: number;
+        text: string;
+        depth: number;
+        parent_uid: string;
+        heading?: number;
+      }
+
+      const flattenBlocks = (
+        blocks: RoamBlock[],
+        depth: number,
+        parentUid: string
+      ): StructureBlock[] => {
+        const result: StructureBlock[] = [];
+        for (const block of blocks) {
+          // Truncate text for preview (keep first 80 chars)
+          const preview = block.string.length > 80
+            ? block.string.substring(0, 80) + '...'
+            : block.string;
+
+          const entry: StructureBlock = {
+            uid: block.uid,
+            order: block.order,
+            text: preview,
+            depth,
+            parent_uid: parentUid
+          };
+
+          if (block.heading) {
+            entry.heading = block.heading;
+          }
+
+          result.push(entry);
+
+          // Recurse into children
+          if (block.children.length > 0) {
+            result.push(...flattenBlocks(block.children, depth + 1, block.uid));
+          }
+        }
+        return result;
+      };
+
+      const structureBlocks = flattenBlocks(rootBlocks, 0, uid);
+
+      return JSON.stringify({
+        page_uid: uid,
+        title: title,
+        block_count: structureBlocks.length,
+        blocks: structureBlocks
+      });
     }
 
     // For markdown, resolve references inline
