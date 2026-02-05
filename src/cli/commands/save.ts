@@ -231,6 +231,7 @@ interface SaveOptions extends GraphOptions {
   todo?: string | boolean;   // TODO item text or flag for stdin
   json?: boolean;            // Force JSON format interpretation
   flatten?: boolean;         // Disable heading hierarchy inference
+  lines?: boolean;           // Treat each non-empty line as a separate block (skip markdown parsing)
 }
 
 interface ContentBlock {
@@ -251,6 +252,7 @@ export function createSaveCommand(): Command {
     .option('-t, --todo [text]', 'Add TODO item(s) to daily page. Accepts inline text or stdin')
     .option('--json', 'Force JSON array format: [{text, level, heading?}, ...]')
     .option('--flatten', 'Disable heading hierarchy inference (all blocks at root level)')
+    .option('--lines', 'Treat each non-empty line as a separate block (bypass markdown parsing)')
     .option('-g, --graph <name>', 'Target graph key (multi-graph mode)')
     .option('--write-key <key>', 'Write confirmation key (non-default graphs)')
     .option('--debug', 'Show debug information')
@@ -278,6 +280,8 @@ Examples:
   echo "Task from CLI" | roam save --todo         # Pipe to TODO
   cat note.md | roam save --title "From Pipe"     # Pipe file content to new page
   echo "Quick capture" | roam save -p "Inbox"     # Pipe to specific page
+  pbpaste | roam save --lines --title "Clipboard" # Each line = separate block
+  cat list.txt | roam save --lines -p "Notes"     # Lines to blocks on page
 
   # Combine options
   roam save -p "Work" --parent "## Today" "Done with task" -c "wins"
@@ -367,7 +371,15 @@ JSON format (--json):
 
         // Parse content into blocks
         let contentBlocks: ContentBlock[];
-        if (isJson) {
+        if (options.lines) {
+          // --lines mode: each non-empty line becomes a separate block, no markdown parsing
+          // Note: requires real newlines in input (use jq -r, not jq, for JSON string fields)
+          contentBlocks = content
+            .split('\n')
+            .map(line => line.trimEnd())
+            .filter(line => line.length > 0)
+            .map(line => ({ text: line, level: 1 }));
+        } else if (isJson) {
           try {
             contentBlocks = parseJsonContent(content);
           } catch (err) {
@@ -421,6 +433,7 @@ JSON format (--json):
           printDebug('Input', input || 'stdin');
           printDebug('Is file', isFile);
           printDebug('Is JSON', isJson);
+          printDebug('Lines mode', options.lines || false);
           printDebug('Flatten mode', options.flatten || false);
           printDebug('Graph', options.graph || 'default');
           printDebug('Content blocks', contentBlocks.length);
@@ -429,6 +442,17 @@ JSON format (--json):
           printDebug('Target page', options.page || 'daily page');
           printDebug('Categories', categories || 'none');
           printDebug('Title', options.title || 'none');
+
+          // Show parsed blocks preview
+          console.error('\n[DEBUG] Parsed blocks:');
+          for (let i = 0; i < contentBlocks.length; i++) {
+            const b = contentBlocks[i];
+            const indent = '  '.repeat(b.level - 1);
+            const headingTag = b.heading ? ` [H${b.heading}]` : '';
+            const preview = b.text.length > 80 ? b.text.substring(0, 80) + '...' : b.text;
+            console.error(`  ${i + 1}. ${indent}${preview}${headingTag}`);
+          }
+          console.error('');
         }
 
         const graph = resolveGraph(options, true);
