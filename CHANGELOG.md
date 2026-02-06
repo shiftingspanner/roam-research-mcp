@@ -1,5 +1,14 @@
 # Changelog
 
+### v2.14.0 (2026-02-05)
+- **Feature:** `--lines` flag for CLI `roam save` — treats each non-empty line as a separate block, bypassing markdown parsing
+  - Useful for piped stdin where each line should be its own block
+  - Note: requires real newlines (`jq -r`, not `jq`, for JSON string fields)
+- **Feature:** Enhanced `--debug` output for `roam save` — shows numbered preview of all parsed blocks with indentation and heading tags
+- **Feature:** Numbered list `children-view-type` now threads through CLI save path
+  - Previously only worked via MCP `roam_create_page`; now `roam save` (both page and block modes) sets `children-view-type: "numbered"` on parent blocks when numbered items are detected
+  - Affects: `flattenNodes`, `ContentBlock`, `TextContentItem`, `buildActionsFromNodes`
+
 ### v2.13.0 (2026-01-25)
 - **Feature:** Markdown parser now handles numbered lists and horizontal rules
   - Numbered list prefixes (`1.`, `2.`, etc.) are stripped from content
