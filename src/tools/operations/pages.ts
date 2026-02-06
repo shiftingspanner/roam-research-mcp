@@ -293,7 +293,7 @@ export class PageOperations {
 
           // Convert to node format with level info
           const nodes = normalizedContent.map(block => ({
-            content: convertToRoamMarkdown(block.text.replace(/^#+\s*/, '')),
+            content: convertToRoamMarkdown(block.text.replace(/^#+\s+/, '')),
             level: block.level,
             ...(block.heading && { heading_level: block.heading }),
             ...(block.numbered_children && { children_view_type: 'numbered' as const }),
