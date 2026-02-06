@@ -15,6 +15,7 @@ interface MarkdownNode {
   content: string;
   level: number;
   heading_level?: number;
+  children_view_type?: 'bullet' | 'document' | 'numbered';
   children: MarkdownNode[];
 }
 
@@ -24,14 +25,15 @@ interface MarkdownNode {
 function flattenNodes(
   nodes: MarkdownNode[],
   baseLevel: number = 1
-): Array<{ text: string; level: number; heading?: number }> {
-  const result: Array<{ text: string; level: number; heading?: number }> = [];
+): Array<{ text: string; level: number; heading?: number; numbered_children?: boolean }> {
+  const result: Array<{ text: string; level: number; heading?: number; numbered_children?: boolean }> = [];
 
   for (const node of nodes) {
     result.push({
       text: node.content,
       level: baseLevel,
-      ...(node.heading_level && { heading: node.heading_level })
+      ...(node.heading_level && { heading: node.heading_level }),
+      ...(node.children_view_type === 'numbered' && { numbered_children: true })
     });
 
     if (node.children.length > 0) {
@@ -238,6 +240,7 @@ interface ContentBlock {
   text: string;
   level: number;
   heading?: number;
+  numbered_children?: boolean;
 }
 
 export function createSaveCommand(): Command {
@@ -538,7 +541,8 @@ JSON format (--json):
               },
               string: block.text,
               uid: `{{uid:${uidPlaceholder}}}`,
-              ...(block.heading && { heading: block.heading })
+              ...(block.heading && { heading: block.heading }),
+              ...(block.numbered_children && { 'children-view-type': 'numbered' })
             });
           }
 
@@ -627,7 +631,8 @@ JSON format (--json):
             },
             string: blockText,
             uid: `{{uid:${uidPlaceholder}}}`,
-            ...(block.heading && { heading: block.heading })
+            ...(block.heading && { heading: block.heading }),
+            ...(block.numbered_children && { 'children-view-type': 'numbered' })
           });
         }
 

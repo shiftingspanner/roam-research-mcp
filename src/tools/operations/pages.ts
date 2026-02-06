@@ -33,6 +33,7 @@ export interface TextContentItem {
   text: string;
   level: number;
   heading?: number;
+  numbered_children?: boolean;
 }
 
 export interface TableContentItem {
@@ -252,7 +253,8 @@ export class PageOperations {
               block: {
                 uid: node.uid,
                 string: node.content,
-                ...(node.heading_level && { heading: node.heading_level })
+                ...(node.heading_level && { heading: node.heading_level }),
+                ...(node.children_view_type && { 'children-view-type': node.children_view_type })
               }
             });
             if (node.children.length > 0) {
@@ -294,6 +296,7 @@ export class PageOperations {
             content: convertToRoamMarkdown(block.text.replace(/^#+\s*/, '')),
             level: block.level,
             ...(block.heading && { heading_level: block.heading }),
+            ...(block.numbered_children && { children_view_type: 'numbered' as const }),
             children: [] as any[]
           }));
 
