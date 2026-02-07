@@ -11,10 +11,11 @@ COPY package-lock.json ./
 # Install development and production dependencies
 RUN --mount=type=cache,target=/root/.npm npm install
 
-# Copy source code and TypeScript configuration
+# Copy source code, TypeScript configuration, and build-time assets
 COPY src /app/src
 COPY tsconfig.json /app/tsconfig.json
 COPY Roam_Markdown_Cheatsheet.md /app/Roam_Markdown_Cheatsheet.md
+COPY .roam /app/.roam
 
 # Build the TypeScript project
 RUN npm run build
