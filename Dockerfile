@@ -29,17 +29,17 @@ ENV NODE_ENV=production
 # Set the working directory
 WORKDIR /app
 
-# Copy only the built application (from /app/build) and production dependencies from the builder stage
+# Copy built application, dependencies, and runtime assets from builder stage
 COPY --from=builder /app/build /app/build
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/package-lock.json /app/package-lock.json
+COPY --from=builder /app/Roam_Markdown_Cheatsheet.md /app/Roam_Markdown_Cheatsheet.md
 
 # Install only production dependencies (based on package-lock.json)
 # This keeps the final image small and secure by omitting development dependencies
 RUN npm ci --ignore-scripts --omit-dev
 
-# Expose the ports the app runs on (3000 for standard, 8088 for HTTP Stream)
-EXPOSE 3000
+# Expose the port the app runs on (HTTP Stream)
 EXPOSE 8088
 
 # Run the application
