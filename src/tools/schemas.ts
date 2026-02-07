@@ -433,7 +433,7 @@ export const toolSchemas = {
   },
   roam_markdown_cheatsheet: {
     name: 'roam_markdown_cheatsheet',
-    description: 'Provides the content of the Roam Markdown Cheatsheet resource, optionally concatenated with custom instructions if CUSTOM_INSTRUCTIONS_PATH is set.',
+    description: 'Provides the comprehensive Roam syntax reference. Covers: formatting, links & references (page refs, block refs, embeds including embed-children and embed-path), tags, dates, tasks, attributes, queries (native and :q Datalog tables with built-in rules), tables, kanban, mermaid diagrams (with theme support), advanced components (dropdowns, tooltips, templates, document mode, word-count), CSS tags (#.rm-E, #.rm-hide, etc.), anti-patterns, tool selection guide, and API efficiency tips.\n\n**IMPORTANT:** Always load this cheatsheet before creating or updating Roam content. It prevents common syntax errors and guides tool selection.',
     inputSchema: {
       type: 'object',
       properties: withMultiGraphParams({}),
@@ -476,7 +476,7 @@ export const toolSchemas = {
   },
   roam_recall: {
     name: 'roam_recall',
-    description: 'Retrieve all stored memories on page titled ROAM_MEMORIES_TAG, or tagged block content with the same name. Returns a combined, deduplicated list of memories. Optionally filter blcoks with a specific tag and sort by creation date.',
+    description: 'Retrieve all stored memories on page titled ROAM_MEMORIES_TAG, or tagged block content with the same name. Returns a combined, deduplicated list of memories. Optionally filter blocks with a specific tag and sort by creation date.',
     inputSchema: {
       type: 'object',
       properties: withMultiGraphParams({
@@ -552,7 +552,7 @@ export const toolSchemas = {
               },
               "string": {
                 type: 'string',
-                description: 'The content for the block, used in "create-block" and "update-block" actions.'
+                description: 'The content for the block, used in "create-block" and "update-block" actions. Supports all Roam syntax: [[page refs]], ((block refs)), {{[[embed]]: ((uid))}}, {{[[embed-children]]: ((uid))}}, {{[[embed-path]]: ((uid))}}, {{[[TODO]]}}, {{[[table]]}}, {{[[mermaid]]}}, {{word-count}}, :hiccup, etc.'
               },
               "open": {
                 type: "boolean",

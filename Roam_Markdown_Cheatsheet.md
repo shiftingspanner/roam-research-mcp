@@ -1,4 +1,4 @@
-# Roam Markdown Cheatsheet v2.2.0
+# Roam Markdown Cheatsheet v2.3.0
 
 ## Core Syntax
 
@@ -9,6 +9,8 @@
 - **Page ref:** `[[Page Name]]` — creates/links to page
 - **Block ref:** `((block-uid))` — embeds block content inline
 - **Block embed:** `{{[[embed]]: ((block-uid))}}` — full block with children
+- **Embed children:** `{{[[embed-children]]: ((block-uid))}}` — children only (not the parent block)
+- **Embed path:** `{{[[embed-path]]: ((block-uid))}}` — block with its ancestor path
 - **External:** `[text](URL)`
 - **Aliased page:** `[display text]([[Actual Page]])`
 - **Aliased block:** `[display text](<((block-uid))>)` — note the angle brackets
@@ -105,12 +107,14 @@ Keep tables ≤5 columns.
 ```
 
 ### Mermaid
+Diagram definition via nested bullets or a code block child:
 ```
 {{[[mermaid]]}}
     - graph TD
         - A[Start] --> B{Decision}
         - B -->|Yes| C[Action]
 ```
+Theme via CSS: `:root { --mermaidjs-theme: dark; }` (in `roam/css`)
 
 ### Hiccup
 `:hiccup [:iframe {:width "600" :height "400" :src "URL"}]`
@@ -128,6 +132,8 @@ Keep tables ≤5 columns.
 ### Advanced Queries
 - **Datalog block query:** `{{datalog-block-query: [:find ?b :where [?b :block/string "text"]]}}` — renders results like native queries
 - **Datalog table:** `:q [:find ?title :where [?p :node/title ?title]]` — renders results in sortable table
+  - Supports column transforms, date arithmetic, resizable columns, pagination
+  - Built-in rules: `(created-by ?user ?block)`, `(edited-by ?user ?block)`, `(by ?user ?block)`, `(refs-page ?title ?b)`, `(block-or-parent-refs-page ?title ?b)`, `(created-between ?t1 ?t2 ?b)`, `(edited-between ?t1 ?t2 ?b)`
 
 ### Document Mode
 `:document` — opens inline WYSIWYG text editor in the block
@@ -135,6 +141,7 @@ Keep tables ≤5 columns.
 ### Utility Components
 - `{{orphans}}` — shows orphaned blocks
 - `{{iframe: URL}}` — embeds web page (simpler than hiccup)
+- `{{word-count}}` — displays word count for the block
 - `{{chart: ATTR_PAGE_TO_CHART}}` — chart component
 - `{{a}}` — anonymous slider (shared graphs)
 
@@ -220,7 +227,7 @@ Server returns `{"uid_map": {"parent": "Xk7mN2pQ9"}}`.
 - **Hierarchy:** 2-4 levels preferred, rarely exceed 5
 - **Blocks:** One idea per block
 - **Page refs vs tags:** `[[Page]]` for expandable concepts, `#tag` for filtering
-- **Embed vs ref:** `((uid))` inline, `{{[[embed]]: ((uid))}}` with children, `[text](<((uid))>)` link only
+- **Embed vs ref:** `((uid))` inline, `{{[[embed]]: ((uid))}}` with children, `{{[[embed-children]]: ((uid))}}` children only, `{{[[embed-path]]: ((uid))}}` with ancestors, `[text](<((uid))>)` link only
 - **No empty blocks or `---` dividers** — use hierarchy for visual separation
 
 ## Output Conventions
