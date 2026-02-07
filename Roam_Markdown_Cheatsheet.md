@@ -1,4 +1,4 @@
-# Roam Markdown Cheatsheet v2.1.0
+# Roam Markdown Cheatsheet v2.2.0
 
 ## Core Syntax
 
@@ -114,6 +114,40 @@ Keep tables ≤5 columns.
 
 ### Hiccup
 `:hiccup [:iframe {:width "600" :height "400" :src "URL"}]`
+
+## Advanced Components
+
+### Dropdowns & Tooltips
+- **Dropdown:** `{{or: option A|option B|option C}}` — select from options, display chosen one
+- **Tooltip:** `{{=:text|hidden content}}` — click to reveal/hide content
+
+### Templates
+- **Template button:** `{{x-template-button: ((roam/template block ref))}}` — inserts template on click
+- **Daily template:** `{{x-daily-template: ((roam/template block ref))}}` — adds `+` button on empty daily notes
+
+### Advanced Queries
+- **Datalog block query:** `{{datalog-block-query: [:find ?b :where [?b :block/string "text"]]}}` — renders results like native queries
+- **Datalog table:** `:q [:find ?title :where [?p :node/title ?title]]` — renders results in sortable table
+
+### Document Mode
+`:document` — opens inline WYSIWYG text editor in the block
+
+### Utility Components
+- `{{orphans}}` — shows orphaned blocks
+- `{{iframe: URL}}` — embeds web page (simpler than hiccup)
+- `{{chart: ATTR_PAGE_TO_CHART}}` — chart component
+- `{{a}}` — anonymous slider (shared graphs)
+
+### CSS Tags
+- `#.classname` — applies CSS class `.classname` to the block
+- Native style tags:
+
+| Tag | Effect |
+|-----|--------|
+| `#.rm-E` | Display children horizontally |
+| `#.rm-g` | Hide block when children expanded |
+| `#.rm-hide` | Hide block when collapsed (clickable bar to reveal) |
+| `#.rm-hide-for-readers` | Hide block for read-only users |
 
 ## Anti-Patterns
 

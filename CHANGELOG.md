@@ -1,5 +1,12 @@
 # Changelog
 
+### v2.15.0 (2026-02-06)
+- **Feature:** Cheatsheet v2.2.0 — added Advanced Components section with hidden/undocumented Roam features
+  - Dropdowns (`{{or:}}`), tooltips (`{{=:}}`), template buttons, daily templates
+  - Advanced Datalog queries (`{{datalog-block-query:}}`, `:q` sortable tables)
+  - Document mode (`:document`), utility components (`{{orphans}}`, `{{iframe}}`, `{{chart}}`)
+  - CSS tags (`#.classname`) and native Roam style tags (`#.rm-E`, `#.rm-hide`, etc.)
+
 ### v2.14.0 (2026-02-05)
 - **Feature:** `--lines` flag for CLI `roam save` — treats each non-empty line as a separate block, bypassing markdown parsing
   - Useful for piped stdin where each line should be its own block
