@@ -14,6 +14,9 @@
     "claude",
     "model-context-protocol"
   ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "author": "Ian Shen / 2B3 PRODUCTIONS LLC",
   "license": "MIT",
   "bugs": {

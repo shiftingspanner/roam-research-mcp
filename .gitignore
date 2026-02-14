@@ -2,6 +2,7 @@ node_modules/
 build/
 *.log
 .env*
+!.env.example
 typescript/*
 src/test-queries.ts
 test-*

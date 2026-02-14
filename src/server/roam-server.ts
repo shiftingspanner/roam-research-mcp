@@ -461,20 +461,42 @@ export class RoamServer {
           }
 
           default:
-            throw new McpError(
-              ErrorCode.MethodNotFound,
-              `Unknown tool: ${request.params.name}`
-            );
+            return {
+              content: [{ type: 'text', text: JSON.stringify({
+                error: 'UNKNOWN_TOOL',
+                message: `Unknown tool: ${request.params.name}`,
+                suggestion: `Available tools: ${Object.keys(toolSchemas).join(', ')}`
+              }, null, 2) }],
+              isError: true,
+            };
         }
       } catch (error: unknown) {
-        if (error instanceof McpError) {
-          throw error;
-        }
+        // Return errors as tool results so the LLM can see and self-correct,
+        // rather than throwing protocol-level McpError exceptions.
         const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Roam API error: ${errorMessage}`
-        );
+        const errorResponse: Record<string, unknown> = {
+          error: error instanceof McpError ? error.code : 'INTERNAL_ERROR',
+          message: errorMessage,
+        };
+
+        // Preserve structured error details if available
+        if (error instanceof Error && 'details' in error) {
+          errorResponse.details = (error as any).details;
+        }
+
+        // Add recovery suggestions for common errors
+        if (errorMessage.includes('write_key')) {
+          errorResponse.suggestion = 'Provide the write_key parameter for write operations on protected graphs.';
+        } else if (errorMessage.includes('not found') || errorMessage.includes('Unknown graph')) {
+          errorResponse.suggestion = 'Verify the page title, block UID, or graph key is correct.';
+        } else if (errorMessage.includes('rate limit') || errorMessage.includes('Too many requests')) {
+          errorResponse.suggestion = 'Wait a moment and retry. Consider using roam_process_batch_actions to combine operations.';
+        }
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(errorResponse, null, 2) }],
+          isError: true,
+        };
       }
     });
   }
